@@ -1,2 +1,17 @@
+# general things to ignore
+
 .DS_Store
-.swp
+*.swp
+build/
+dist/
+*.egg-info/
+*.egg
+*.py[cod]
+__pycache__/
+*.so
+*~
+
+# due to using tox and pytest
+
+.tox
+.cache
