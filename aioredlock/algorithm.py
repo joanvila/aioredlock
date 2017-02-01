@@ -1,14 +1,17 @@
 import asyncio
 import aioredis
+import uuid
 
 from aioredlock.lock import Lock
 
 
 class Aioredlock:
 
-    LOCK_TIMEOUT = 10  # seconds
+    LOCK_TIMEOUT = 10000  # 10 seconds
 
     def __init__(self, host='localhost', port=6379):
+        # TODO: Support for more that one redis instance
+
         self.redis_host = host
         self.redis_port = port
 
@@ -22,11 +25,11 @@ class Aioredlock:
         :return: :class:`aioredlock.Lock`
         """
         with await self._connect() as redis:
-            await redis.set(resource, "my_random_value")
-            await redis.expire(resource, self.LOCK_TIMEOUT)
+            lock_identifier = uuid.uuid4()
+            valid_lock = await redis.set(
+                resource, lock_identifier, pexpire=self.LOCK_TIMEOUT, exist=redis.SET_IF_NOT_EXIST)
 
-        valid = True
-        return Lock(resource, valid=valid)
+            return Lock(resource, lock_identifier, valid=valid_lock)
 
     async def _connect(self):
         if self._pool is None:
