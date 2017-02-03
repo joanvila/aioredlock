@@ -8,9 +8,3 @@ class Lock:
         self.resource = resource
         self.id = lock_identifier
         self.valid = valid
-
-    async def unlock(self):
-        """
-        Release the lock setting it's validity to false.
-        """
-        self.valid = False

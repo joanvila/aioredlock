@@ -7,6 +7,17 @@ from unittest.mock import Mock, MagicMock, ANY
 from aioredlock import Aioredlock
 
 
+@pytest.fixture
+def mock_redis():
+
+    class RedisMock:
+        set = CoroutineMock()
+        eval = CoroutineMock()
+
+    redis = RedisMock()
+    return redis
+
+
 class TestAioredlock:
 
     def test_default_initialization(self):
@@ -22,8 +33,8 @@ class TestAioredlock:
         assert lock_manager._pool is None
 
     @pytest.mark.asyncio
-    async def test_lock_acquired_v1(self, mocker):
-        mocker.patch("aioredis.create_pool", return_value=CoroutineMock())
+    async def test_lock_acquired_v1(self, mocker, mock_redis):
+        mocker.patch("aioredis.create_pool", CoroutineMock(return_value=mock_redis))
 
         lock_manager = Aioredlock()
         lock_manager.LOCK_TIMEOUT = 1
@@ -38,8 +49,8 @@ class TestAioredlock:
 
     @pytest.mark.asyncio
     async def test_lock_acquired_v2(self):
-        with asynctest.mock.patch("aioredis.create_pool"):
-            # aioredis.create_pool = CoroutineMock()
+        with asynctest.mock.patch("aioredis.create_pool") as create_pool:
+            create_pool.return_value = mock_redis
 
             lock_manager = Aioredlock()
             lock_manager.LOCK_TIMEOUT = 1

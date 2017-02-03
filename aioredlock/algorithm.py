@@ -9,6 +9,13 @@ class Aioredlock:
 
     LOCK_TIMEOUT = 10000  # 10 seconds
 
+    UNLOCK_SCRIPT = """
+    if redis.call("get",KEYS[1]) == ARGV[1] then
+        return redis.call("del",KEYS[1])
+    else
+        return 0
+    end"""
+
     def __init__(self, host='localhost', port=6379):
         # TODO: Support for more that one redis instance
 
@@ -25,11 +32,22 @@ class Aioredlock:
         :return: :class:`aioredlock.Lock`
         """
         with await self._connect() as redis:
-            lock_identifier = uuid.uuid4()
+            lock_identifier = str(uuid.uuid4())
             valid_lock = await redis.set(
                 resource, lock_identifier, pexpire=self.LOCK_TIMEOUT, exist=redis.SET_IF_NOT_EXIST)
 
             return Lock(resource, lock_identifier, valid=valid_lock)
+
+    async def unlock(self, lock):
+        """
+        Release the lock and sets it's validity to false.
+
+        :param lock: :class:`aioredlock.Lock`
+        """
+        with await self._connect() as redis:
+            await redis.eval(self.UNLOCK_SCRIPT, keys=[lock.resource], args=[lock.id])
+
+        lock.valid = False
 
     async def _connect(self):
         if self._pool is None:
