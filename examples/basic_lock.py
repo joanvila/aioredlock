@@ -8,6 +8,8 @@ async def basic_lock():
     lock = await lock_manager.lock("resource")
     assert lock.valid is True
 
+    # Do your stuff having the lock
+
     await lock_manager.unlock(lock)
     assert lock.valid is False
 

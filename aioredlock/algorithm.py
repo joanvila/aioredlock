@@ -27,7 +27,9 @@ class Aioredlock:
     async def lock(self, resource):
         """
         Tries to acquire de lock.
-        If the lock is correctly acquired, the valid property of the lock is true.
+        If the lock is correctly acquired, the valid property of the returned lock is true.
+
+        :param resource: The string identifier of the resource to lock
 
         :return: :class:`aioredlock.Lock`
         """
@@ -56,8 +58,11 @@ class Aioredlock:
                     self._pool = await aioredis.create_pool(
                         (self.redis_host, self.redis_port), minsize=5)
 
-        return (await self._pool)
+        return await self._pool
 
     async def destroy(self):
+        """
+        Clear all the redis connections
+        """
         self._pool.close()
         await self._pool.wait_closed()
