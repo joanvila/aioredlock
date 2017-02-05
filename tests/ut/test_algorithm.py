@@ -1,21 +1,15 @@
 import pytest
-import asynctest
 
 from asynctest import CoroutineMock
 from unittest.mock import Mock, ANY
 
 from aioredlock import Aioredlock
+from aioredlock import Lock
 
 
 @pytest.fixture
-def mock_redis():
-
-    class RedisMock:
-        set = CoroutineMock()
-        eval = CoroutineMock()
-
-    redis = RedisMock()
-    return redis
+def locked_lock():
+    return Lock("resource_name", 1, True)
 
 
 class TestAioredlock:
@@ -33,35 +27,37 @@ class TestAioredlock:
         assert lock_manager._pool is None
 
     @pytest.mark.asyncio
-    async def test_lock_acquired_v1(self, mocker, mock_redis):
-        mocker.patch("aioredis.create_pool", CoroutineMock(return_value=mock_redis))
-
-        lock_manager = Aioredlock()
-        lock_manager.LOCK_TIMEOUT = 1
-
+    async def test_lock(self, lock_manager):
+        lock_manager, pool = lock_manager
         lock = await lock_manager.lock("resource_name")
-        lock_manager._pool.set.assert_called_once_with(
-            "resource_name", ANY, 1, True)
+
+        pool.set.assert_called_once_with(
+            "resource_name",
+            ANY,
+            pexpire=1,
+            exist=pool.SET_IF_NOT_EXIST
+        )
 
         assert lock.resource == "resource_name"
         assert lock.id == ANY
         assert lock.valid is True
 
     @pytest.mark.asyncio
-    async def test_lock_acquired_v2(self):
-        with asynctest.mock.patch("aioredis.create_pool") as create_pool:
-            create_pool.return_value = mock_redis
+    async def test_unlock(self, lock_manager, locked_lock):
+        lock_manager, pool = lock_manager
+        await lock_manager.unlock(locked_lock)
 
-            lock_manager = Aioredlock()
-            lock_manager.LOCK_TIMEOUT = 1
+        pool.eval.assert_called_once_with(
+            Aioredlock().UNLOCK_SCRIPT,
+            keys=[locked_lock.resource],
+            args=[locked_lock.id]
+        )
 
-            lock = await lock_manager.lock("resource_name")
-            lock_manager._pool.set.assert_called_once_with(
-                "resource_name", ANY, 1, True)
+        assert locked_lock.valid is False
 
-            assert lock.resource == "resource_name"
-            assert lock.id == ANY
-            assert lock.valid is True
+    @pytest.mark.asyncio
+    async def test_connect(self):
+        assert True is True
 
     @pytest.mark.asyncio
     async def test_destroy_lock_manager(self):
