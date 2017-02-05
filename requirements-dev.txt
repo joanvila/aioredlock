@@ -2,6 +2,7 @@ flake8==3.2.1
 pytest==3.0.6
 pytest-asyncio==0.5.0
 pytest-mock==1.5.0
+pytest-cov==2.4.0
 codecov==2.0.5
 asynctest==0.10.0
-ipdb=0.10.2
+ipdb==0.10.2

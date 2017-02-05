@@ -1,6 +1,9 @@
 aioredlock
 ==========
 
+.. image:: https://travis-ci.org/joanvila/aioredlock.svg?branch=master
+  :target: https://travis-ci.org/joanvila/aioredlock
+
 The asyncio redlock_ algorithm implementation.
 
 Redlock and asyncio
@@ -8,10 +11,6 @@ Redlock and asyncio
 
 The redlock algorithm is a distributed lock implementation for Redis_. There are many implementations of it in several languages. In this case, this is the asyncio_ compatible implementation for python.
 
-
-.. _redlock: https://redis.io/topics/distlock
-.. _Redis: https://redis.io
-.. _asyncio: https://docs.python.org/3/library/asyncio.html
 
 Usage
 -----
@@ -31,4 +30,10 @@ Release the lock:
 To-do
 -----
 
-* Everything
+* Support multiple redis instances
+* Add drift time
+* Lock extension
+
+.. _redlock: https://redis.io/topics/distlock
+.. _Redis: https://redis.io
+.. _asyncio: https://docs.python.org/3/library/asyncio.html

@@ -1,10 +1,41 @@
 import pytest
 
-from asynctest import CoroutineMock
+from asynctest import CoroutineMock, patch
 from unittest.mock import Mock, ANY
 
 from aioredlock import Aioredlock
 from aioredlock import Lock
+
+
+class FakePool:
+
+    SET_IF_NOT_EXIST = 'SET_IF_NOT_EXIST'
+
+    def __init__(self):
+        self.set = CoroutineMock(return_value=True)
+        self.eval = CoroutineMock()
+
+    def __await__(self):
+        yield
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        pass
+
+    def __call__(self):
+        return self
+
+
+@pytest.fixture
+def lock_manager():
+    lock_manager = Aioredlock()
+    pool = FakePool()
+    lock_manager._connect = pool
+    lock_manager.LOCK_TIMEOUT = 1
+    yield lock_manager, pool
 
 
 @pytest.fixture
@@ -56,8 +87,28 @@ class TestAioredlock:
         assert locked_lock.valid is False
 
     @pytest.mark.asyncio
-    async def test_connect(self):
-        assert True is True
+    async def test_connect_pool_not_created(self):
+        with patch("aioredis.create_pool") as create_pool:
+            fake_pool = FakePool()
+            create_pool.return_value = fake_pool
+            lock_manager = Aioredlock()
+
+            pool = await lock_manager._connect()
+
+            create_pool.assert_called_once_with(('localhost', 6379), minsize=5)
+            assert pool is fake_pool
+
+    @pytest.mark.asyncio
+    async def test_connect_pool_already_created(self):
+        with patch("aioredis.create_pool") as create_pool:
+            lock_manager = Aioredlock()
+            fake_pool = FakePool()
+            lock_manager._pool = fake_pool
+
+            pool = await lock_manager._connect()
+
+            assert not create_pool.called
+            assert pool is fake_pool
 
     @pytest.mark.asyncio
     async def test_destroy_lock_manager(self):

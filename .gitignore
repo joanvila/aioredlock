@@ -10,6 +10,7 @@ dist/
 __pycache__/
 *.so
 *~
+.coverage
 
 # due to using tox and pytest
 
