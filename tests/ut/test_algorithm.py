@@ -2,7 +2,7 @@ import pytest
 import asynctest
 
 from asynctest import CoroutineMock
-from unittest.mock import Mock, MagicMock, ANY
+from unittest.mock import Mock, ANY
 
 from aioredlock import Aioredlock
 
