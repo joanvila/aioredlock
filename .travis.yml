@@ -9,5 +9,6 @@ install:
   - pip install -r requirements-dev.txt
 
 script:
+  - python setup.py develop
   - make all_tests
   - pytest --cov-report term-missing --cov=aiocache -sv tests/ut
