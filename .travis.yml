@@ -16,3 +16,6 @@ script:
 
 services:
   - redis-server
+
+after_success:
+  - codecov
