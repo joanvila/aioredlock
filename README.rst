@@ -4,6 +4,9 @@ aioredlock
 .. image:: https://travis-ci.org/joanvila/aioredlock.svg?branch=master
   :target: https://travis-ci.org/joanvila/aioredlock
 
+.. image:: https://codecov.io/gh/joanvila/aioredlock/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/joanvila/aioredlock
+
 The asyncio redlock_ algorithm implementation.
 
 Redlock and asyncio
