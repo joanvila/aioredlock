@@ -17,18 +17,21 @@ The redlock algorithm is a distributed lock implementation for Redis_. There are
 
 Usage
 -----
+.. code-block:: python
 
-Create a lock manager instance:
+  from aioredlock import Aioredlock
 
-``lock_manager = Aioredlock()``
+  # Create a lock manager instance:
+  lock_manager = Aioredlock(host='localhost', port=6379)
 
-Try to get the acquire the lock:
+  # Try to get the acquire the lock:
+  lock = await lock_manager.lock("resource_name")
 
-``lock = await lock_manager.lock("resource_name", 10)``
+  # Release the lock:
+  await lock_manager.unlock(lock)
 
-Release the lock:
-
-``await lock_manager.unlock(lock)``
+  # Clear the connection with Redis
+  await lock_manager.destroy()
 
 To-do
 -----

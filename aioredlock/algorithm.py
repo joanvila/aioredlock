@@ -16,33 +16,52 @@ class Aioredlock:
         return 0
     end"""
 
-    def __init__(self, host='localhost', port=6379):
+    retry_count = 3
+    retry_delay = 0.2
+
+    def __init__(self, host='localhost', port=6379, retry_count=None, retry_delay=None):
         # TODO: Support for more that one redis instance
 
         self.redis_host = host
         self.redis_port = port
+
+        self.retry_count = retry_count or self.retry_count
+        self.retry_delay = retry_delay or self.retry_delay
 
         self._pool = None
 
     async def lock(self, resource):
         """
         Tries to acquire de lock.
-        If the lock is correctly acquired, the valid property of the returned lock is true.
+        If the lock is correctly acquired, the valid property of the returned lock is True.
 
         :param resource: The string identifier of the resource to lock
-
         :return: :class:`aioredlock.Lock`
         """
-        with await self._connect() as redis:
-            lock_identifier = str(uuid.uuid4())
-            valid_lock = await redis.set(
-                resource, lock_identifier, pexpire=self.LOCK_TIMEOUT, exist=redis.SET_IF_NOT_EXIST)
+        retries = 1
+        valid_lock = False
 
-            return Lock(resource, lock_identifier, valid=valid_lock)
+        lock_identifier = str(uuid.uuid4())
+        valid_lock = await self._redis_set_lock(resource, lock_identifier)
+
+        while not valid_lock and retries < self.retry_count:  # retry policy
+            await asyncio.sleep(self.retry_delay)
+            valid_lock = await self._redis_set_lock(resource, lock_identifier)
+            retries += 1
+
+        return Lock(resource, lock_identifier, valid=valid_lock)
+
+    async def _redis_set_lock(self, resource, lock_identifier):
+        with await self._connect() as redis:
+            return await redis.set(
+                resource,
+                lock_identifier,
+                pexpire=self.LOCK_TIMEOUT,
+                exist=redis.SET_IF_NOT_EXIST)
 
     async def unlock(self, lock):
         """
-        Release the lock and sets it's validity to false.
+        Release the lock and sets it's validity to False.
 
         :param lock: :class:`aioredlock.Lock`
         """

@@ -1,7 +1,7 @@
 import pytest
 
 from asynctest import CoroutineMock, patch
-from unittest.mock import Mock, ANY
+from unittest.mock import Mock, ANY, call
 
 from aioredlock import Aioredlock
 from aioredlock import Lock
@@ -49,16 +49,20 @@ class TestAioredlock:
         lock_manager = Aioredlock()
         assert lock_manager.redis_host == 'localhost'
         assert lock_manager.redis_port == 6379
+        assert lock_manager.retry_count == 3
+        assert lock_manager.retry_delay == 0.2
         assert lock_manager._pool is None
 
     def test_initialization_with_params(self):
-        lock_manager = Aioredlock('host', 1)
+        lock_manager = Aioredlock('host', 1, retry_count=2, retry_delay=0.1)
         assert lock_manager.redis_host == 'host'
         assert lock_manager.redis_port == 1
+        assert lock_manager.retry_count == 2
+        assert lock_manager.retry_delay == 0.1
         assert lock_manager._pool is None
 
     @pytest.mark.asyncio
-    async def test_lock(self, lock_manager):
+    async def test_lock_no_retries(self, lock_manager):
         lock_manager, pool = lock_manager
         lock = await lock_manager.lock("resource_name")
 
@@ -72,6 +76,41 @@ class TestAioredlock:
         assert lock.resource == "resource_name"
         assert lock.id == ANY
         assert lock.valid is True
+
+    @pytest.mark.asyncio
+    async def test_lock_one_retry(self, lock_manager):
+        lock_manager, pool = lock_manager
+        pool.set = CoroutineMock(side_effect=[False, True])
+        lock = await lock_manager.lock("resource_name")
+
+        calls = [
+            call("resource_name", ANY, pexpire=1, exist=pool.SET_IF_NOT_EXIST),
+            call("resource_name", ANY, pexpire=1, exist=pool.SET_IF_NOT_EXIST)
+        ]
+
+        pool.set.assert_has_calls(calls)
+
+        assert lock.resource == "resource_name"
+        assert lock.id == ANY
+        assert lock.valid is True
+
+    @pytest.mark.asyncio
+    async def test_lock_expire_retries(self, lock_manager):
+        lock_manager, pool = lock_manager
+        pool.set = CoroutineMock(side_effect=[False, False, False])
+        lock = await lock_manager.lock("resource_name")
+
+        calls = [
+            call("resource_name", ANY, pexpire=1, exist=pool.SET_IF_NOT_EXIST),
+            call("resource_name", ANY, pexpire=1, exist=pool.SET_IF_NOT_EXIST),
+            call("resource_name", ANY, pexpire=1, exist=pool.SET_IF_NOT_EXIST)
+        ]
+
+        pool.set.assert_has_calls(calls)
+
+        assert lock.resource == "resource_name"
+        assert lock.id == ANY
+        assert lock.valid is False
 
     @pytest.mark.asyncio
     async def test_unlock(self, lock_manager, locked_lock):
