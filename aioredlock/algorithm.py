@@ -51,14 +51,6 @@ class Aioredlock:
 
         return Lock(resource, lock_identifier, valid=valid_lock)
 
-    async def _redis_set_lock(self, resource, lock_identifier):
-        with await self._connect() as redis:
-            return await redis.set(
-                resource,
-                lock_identifier,
-                pexpire=self.LOCK_TIMEOUT,
-                exist=redis.SET_IF_NOT_EXIST)
-
     async def unlock(self, lock):
         """
         Release the lock and sets it's validity to False.
@@ -70,6 +62,21 @@ class Aioredlock:
 
         lock.valid = False
 
+    async def destroy(self):
+        """
+        Clear all the redis connections
+        """
+        self._pool.close()
+        await self._pool.wait_closed()
+
+    async def _redis_set_lock(self, resource, lock_identifier):
+        with await self._connect() as redis:
+            return await redis.set(
+                resource,
+                lock_identifier,
+                pexpire=self.LOCK_TIMEOUT,
+                exist=redis.SET_IF_NOT_EXIST)
+
     async def _connect(self):
         if self._pool is None:
             async with asyncio.Lock():
@@ -78,10 +85,3 @@ class Aioredlock:
                         (self.redis_host, self.redis_port), minsize=5)
 
         return await self._pool
-
-    async def destroy(self):
-        """
-        Clear all the redis connections
-        """
-        self._pool.close()
-        await self._pool.wait_closed()
