@@ -8,8 +8,8 @@ class TestAioredlock:
     RESOURCE2 = "2"
 
     @pytest.mark.asyncio
-    async def test_simple_aioredlock(self, redis_connection):
-        lock_manager = Aioredlock(redis_connection.host, redis_connection.port)
+    async def test_simple_aioredlock(self, single_redis_connection):
+        lock_manager = Aioredlock(single_redis_connection)
 
         lock = await lock_manager.lock(self.RESOURCE1)
         assert lock.valid is True
@@ -20,8 +20,8 @@ class TestAioredlock:
         await lock_manager.destroy()
 
     @pytest.mark.asyncio
-    async def test_aioredlock_two_locks_on_different_resources(self, redis_connection):
-        lock_manager = Aioredlock(redis_connection.host, redis_connection.port)
+    async def test_aioredlock_two_locks_on_different_resources(self, single_redis_connection):
+        lock_manager = Aioredlock(single_redis_connection)
 
         lock1 = await lock_manager.lock(self.RESOURCE1)
         assert lock1.valid is True
@@ -37,8 +37,8 @@ class TestAioredlock:
         await lock_manager.destroy()
 
     @pytest.mark.asyncio
-    async def test_aioredlock_two_locks_on_same_resource(self, redis_connection):
-        lock_manager = Aioredlock(redis_connection.host, redis_connection.port)
+    async def test_aioredlock_two_locks_on_same_resource(self, single_redis_connection):
+        lock_manager = Aioredlock(single_redis_connection)
 
         lock1 = await lock_manager.lock(self.RESOURCE1)
         assert lock1.valid is True

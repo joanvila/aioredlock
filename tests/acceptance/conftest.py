@@ -6,8 +6,8 @@ Redis_config = namedtuple('Redis_config', ['host', 'port'])
 
 
 @pytest.fixture
-def redis_connection():
-    return Redis_config(
-        host='localhost',
-        port=6379
-    )
+def single_redis_connection():
+    return [{
+        'host': 'localhost',
+        'port': 6379
+    }]
