@@ -1,7 +1,7 @@
 import pytest
 
 from asynctest import CoroutineMock, patch
-from unittest.mock import call
+from unittest.mock import call, MagicMock
 
 from aioredlock.redis import Instance
 from aioredlock.redis import Redis
@@ -52,7 +52,6 @@ class TestInstance:
             pool = await instance.connect()
 
             create_pool.assert_called_once_with(('localhost', 6379), minsize=5)
-
             assert pool is fake_pool
             assert instance._pool is fake_pool
 
@@ -113,21 +112,21 @@ class TestRedis:
     def test_initialization(self, redis_two_connections):
         with patch("aioredlock.redis.Instance.__init__") as mock_instance:
             mock_instance.return_value = None
+
             redis = Redis(redis_two_connections, 10)
 
             calls = [
                 call('localhost', 6379),
                 call('127.0.0.1', 6378)
             ]
-
             mock_instance.assert_has_calls(calls)
-
             assert len(redis.instances) == 2
             assert redis.lock_timeout == 10
 
     @pytest.mark.asyncio
     async def test_set_lock(self, mock_redis_two_instances):
         redis, pool = mock_redis_two_instances
+
         locked, elapsed_time = await redis.set_lock('resource', 'lock_id')
 
         calls = [
@@ -141,6 +140,7 @@ class TestRedis:
     async def test_set_lock_one_of_two_instances_failed(self, mock_redis_two_instances):
         redis, pool = mock_redis_two_instances
         pool.set = CoroutineMock(side_effect=[False, True])
+
         locked, elapsed_time = await redis.set_lock('resource', 'lock_id')
 
         calls = [
@@ -164,6 +164,7 @@ class TestRedis:
             lock_acquired):
         redis, pool = mock_redis_three_instances
         pool.set = CoroutineMock(side_effect=redis_failures)
+
         locked, elapsed_time = await redis.set_lock('resource', 'lock_id')
 
         calls = [
@@ -173,3 +174,28 @@ class TestRedis:
         ]
         pool.set.assert_has_calls(calls)
         assert locked is lock_acquired
+
+    @pytest.mark.asyncio
+    async def test_run_lua(self, mock_redis_two_instances):
+        redis, pool = mock_redis_two_instances
+        keys = ['k1', 'k2']
+        args = ['a1', 'a2']
+
+        await redis.run_lua('script', keys=keys, args=args)
+
+        calls = [
+            call('script', keys=keys, args=args),
+            call('script', keys=keys, args=args)
+        ]
+        pool.eval.assert_has_calls(calls)
+
+    @pytest.mark.asyncio
+    async def test_clear_connections(self, mock_redis_two_instances):
+        redis, pool = mock_redis_two_instances
+        pool.close = MagicMock()
+        pool.wait_closed = CoroutineMock()
+
+        await redis.clear_connections()
+
+        pool.close.assert_has_calls([call(), call()])
+        pool.wait_closed.assert_has_calls([call(), call()])
