@@ -46,7 +46,7 @@ class Aioredlock:
         while not valid_lock and retries < self.retry_count:  # retry policy
             await asyncio.sleep(self.retry_delay)
             locked, elapsed_time = await self.redis.set_lock(resource, lock_identifier)
-            valid_lock = valid_lock and int(self.LOCK_TIMEOUT - elapsed_time) > 0
+            valid_lock = locked and int(self.LOCK_TIMEOUT - elapsed_time) > 0
             retries += 1
 
         return Lock(resource, lock_identifier, valid=valid_lock)
