@@ -19,22 +19,21 @@ class Instance:
             async with asyncio.Lock():
                 if self._pool is None:
                     self._pool = await aioredis.create_pool(
-                        (self.host, self.port), minsize=4)
+                        (self.host, self.port), minsize=5)
 
         return await self._pool
 
 
 class Redis:
 
-    instances = []
-
     def __init__(self, redis_connections, lock_timeout):
 
+        self.instances = []
         for connection in redis_connections:
             self.instances.append(
                 Instance(connection['host'], connection['port']))
 
-        self. lock_timeout = lock_timeout
+        self.lock_timeout = lock_timeout
 
     async def set_lock(self, resource, lock_identifier):
         """
