@@ -1,5 +1,8 @@
 language: python
 
+env:
+  - CI=True
+
 python:
   - "3.5"
   - "3.6"
@@ -12,9 +15,10 @@ script:
   - python setup.py develop
   - make syntax
   - pytest --cov-report term-missing --cov=aioredlock -sv tests/ut
-  - docker-compose -f docker-compose.yml up -d
   - pytest -sv tests/acceptance
-  - docker-compose -f docker-compose.yml stop
+
+services:
+  - redis-server
 
 after_success:
   - codecov
