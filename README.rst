@@ -7,6 +7,9 @@ aioredlock
 .. image:: https://codecov.io/gh/joanvila/aioredlock/branch/master/graph/badge.svg
   :target: https://codecov.io/gh/joanvila/aioredlock
 
+.. image:: https://badge.fury.io/py/aioredlock.svg
+  :target: https://pypi.python.org/pypi/aioredlock
+
 The asyncio redlock_ algorithm implementation.
 
 Redlock and asyncio
