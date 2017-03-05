@@ -6,9 +6,16 @@ from aioredlock import Aioredlock
 class TestAioredlock:
 
     @pytest.mark.asyncio
-    async def test_simple_aioredlock(self, single_redis_connection):
+    @pytest.mark.parametrize("redis_connections", [
+        ([{'host': 'localhost', 'port': 6379}]),
+        ([
+            {'host': 'localhost', 'port': 6379},
+            {'host': 'localhost', 'port': 6378}
+        ]),
+    ])
+    async def test_simple_aioredlock(self, redis_connections):
         resource = str(uuid.uuid4())
-        lock_manager = Aioredlock(single_redis_connection)
+        lock_manager = Aioredlock(redis_connections)
 
         lock = await lock_manager.lock(resource)
         assert lock.valid is True
@@ -19,10 +26,17 @@ class TestAioredlock:
         await lock_manager.destroy()
 
     @pytest.mark.asyncio
-    async def test_aioredlock_two_locks_on_different_resources(self, single_redis_connection):
+    @pytest.mark.parametrize("redis_connections", [
+        ([{'host': 'localhost', 'port': 6379}]),
+        ([
+            {'host': 'localhost', 'port': 6379},
+            {'host': 'localhost', 'port': 6378}
+        ]),
+    ])
+    async def test_aioredlock_two_locks_on_different_resources(self, redis_connections):
         resource1 = str(uuid.uuid4())
         resource2 = str(uuid.uuid4())
-        lock_manager = Aioredlock(single_redis_connection)
+        lock_manager = Aioredlock(redis_connections)
 
         lock1 = await lock_manager.lock(resource1)
         assert lock1.valid is True
@@ -38,9 +52,16 @@ class TestAioredlock:
         await lock_manager.destroy()
 
     @pytest.mark.asyncio
-    async def test_aioredlock_two_locks_on_same_resource(self, single_redis_connection):
+    @pytest.mark.parametrize("redis_connections", [
+        ([{'host': 'localhost', 'port': 6379}]),
+        ([
+            {'host': 'localhost', 'port': 6379},
+            {'host': 'localhost', 'port': 6378}
+        ]),
+    ])
+    async def test_aioredlock_two_locks_on_same_resource(self, redis_connections):
         resource = str(uuid.uuid4())
-        lock_manager = Aioredlock(single_redis_connection)
+        lock_manager = Aioredlock(redis_connections)
 
         lock1 = await lock_manager.lock(resource)
         assert lock1.valid is True
