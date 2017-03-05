@@ -1,7 +1,7 @@
 import asyncio
-import aioredis
 import uuid
 
+from aioredlock.redis import Redis
 from aioredlock.lock import Lock
 
 
@@ -19,16 +19,15 @@ class Aioredlock:
     retry_count = 3
     retry_delay = 0.2
 
-    def __init__(self, host='localhost', port=6379, retry_count=None, retry_delay=None):
-        # TODO: Support for more that one redis instance
+    def __init__(self, redis_connections=[{'host': 'localhost', 'port': 6379}]):
+        """
+        Initializes Aioredlock with the list of redis instances
 
-        self.redis_host = host
-        self.redis_port = port
+        :param redis_connections: A list of dicts like:
+        [{"host": "localhost", "port": 6379}]
+        """
 
-        self.retry_count = retry_count or self.retry_count
-        self.retry_delay = retry_delay or self.retry_delay
-
-        self._pool = None
+        self.redis = Redis(redis_connections, self.LOCK_TIMEOUT)
 
     async def lock(self, resource):
         """
@@ -39,14 +38,15 @@ class Aioredlock:
         :return: :class:`aioredlock.Lock`
         """
         retries = 1
-        valid_lock = False
-
         lock_identifier = str(uuid.uuid4())
-        valid_lock = await self._redis_set_lock(resource, lock_identifier)
+
+        locked, elapsed_time = await self.redis.set_lock(resource, lock_identifier)
+        valid_lock = locked and int(self.LOCK_TIMEOUT - elapsed_time) > 0
 
         while not valid_lock and retries < self.retry_count:  # retry policy
             await asyncio.sleep(self.retry_delay)
-            valid_lock = await self._redis_set_lock(resource, lock_identifier)
+            locked, elapsed_time = await self.redis.set_lock(resource, lock_identifier)
+            valid_lock = locked and int(self.LOCK_TIMEOUT - elapsed_time) > 0
             retries += 1
 
         return Lock(resource, lock_identifier, valid=valid_lock)
@@ -57,8 +57,7 @@ class Aioredlock:
 
         :param lock: :class:`aioredlock.Lock`
         """
-        with await self._connect() as redis:
-            await redis.eval(self.UNLOCK_SCRIPT, keys=[lock.resource], args=[lock.id])
+        await self.redis.run_lua(self.UNLOCK_SCRIPT, keys=[lock.resource], args=[lock.id])
 
         lock.valid = False
 
@@ -66,22 +65,4 @@ class Aioredlock:
         """
         Clear all the redis connections
         """
-        self._pool.close()
-        await self._pool.wait_closed()
-
-    async def _redis_set_lock(self, resource, lock_identifier):
-        with await self._connect() as redis:
-            return await redis.set(
-                resource,
-                lock_identifier,
-                pexpire=self.LOCK_TIMEOUT,
-                exist=redis.SET_IF_NOT_EXIST)
-
-    async def _connect(self):
-        if self._pool is None:
-            async with asyncio.Lock():
-                if self._pool is None:
-                    self._pool = await aioredis.create_pool(
-                        (self.redis_host, self.redis_port), minsize=5)
-
-        return await self._pool
+        await self.redis.clear_connections()

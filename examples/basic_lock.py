@@ -3,7 +3,10 @@ from aioredlock import Aioredlock
 
 
 async def basic_lock():
-    lock_manager = Aioredlock('localhost', 6379)
+    lock_manager = Aioredlock([{
+        'host': 'localhost',
+        'port': 6379
+    }])
 
     lock = await lock_manager.lock("resource")
     assert lock.valid is True
