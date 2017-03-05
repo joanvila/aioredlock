@@ -12,11 +12,9 @@ script:
   - python setup.py develop
   - make syntax
   - pytest --cov-report term-missing --cov=aioredlock -sv tests/ut
+  - docker-compose -f docker-compose.yml up -d
   - pytest -sv tests/acceptance
-
-services:
-  - redis-server --port 6379
-  - redis-server --port 6378
+  - docker-compose -f docker-compose.yml stop
 
 after_success:
   - codecov
