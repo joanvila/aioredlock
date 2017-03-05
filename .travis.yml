@@ -15,7 +15,8 @@ script:
   - pytest -sv tests/acceptance
 
 services:
-  - redis-server
+  - redis-server --port 6379
+  - redis-server --port 6378
 
 after_success:
   - codecov
