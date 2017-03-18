@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+import random
 
 from aioredlock.redis import Redis
 from aioredlock.lock import Lock
@@ -17,7 +18,8 @@ class Aioredlock:
     end"""
 
     retry_count = 3
-    retry_delay = 0.2
+    retry_delay_min = 0.1
+    retry_delay_max = 0.3
 
     def __init__(self, redis_connections=[{'host': 'localhost', 'port': 6379}]):
         """
@@ -44,12 +46,15 @@ class Aioredlock:
         valid_lock = locked and int(self.LOCK_TIMEOUT - elapsed_time) > 0
 
         while not valid_lock and retries < self.retry_count:  # retry policy
-            await asyncio.sleep(self.retry_delay)
+            await asyncio.sleep(self._retry_delay())
             locked, elapsed_time = await self.redis.set_lock(resource, lock_identifier)
             valid_lock = locked and int(self.LOCK_TIMEOUT - elapsed_time) > 0
             retries += 1
 
         return Lock(resource, lock_identifier, valid=valid_lock)
+
+    def _retry_delay(self):
+        return random.uniform(self.retry_delay_min, self.retry_delay_max)
 
     async def unlock(self, lock):
         """
