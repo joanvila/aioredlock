@@ -8,6 +8,10 @@ from aioredlock import Aioredlock
 from aioredlock import Lock
 
 
+async def dummy_sleep(seconds):
+    pass
+
+
 @pytest.fixture
 def locked_lock():
     return Lock("resource_name", 1, True)
@@ -16,16 +20,16 @@ def locked_lock():
 @pytest.fixture
 def lock_manager_redis_patched():
     with asynctest.patch("aioredlock.algorithm.Redis", CoroutineMock) as mock_redis:
-        mock_redis.set_lock = CoroutineMock(return_value=(True, 5))
-        mock_redis.run_lua = CoroutineMock()
-        mock_redis.clear_connections = CoroutineMock()
+        with patch("asyncio.sleep", dummy_sleep):
+            mock_redis.set_lock = CoroutineMock(return_value=(True, 5))
+            mock_redis.run_lua = CoroutineMock()
+            mock_redis.clear_connections = CoroutineMock()
 
-        lock_manager = Aioredlock()
-        lock_manager.LOCK_TIMEOUT = 10
-        lock_manager.retry_count = 3
-        lock_manager.retry_delay = 0
+            lock_manager = Aioredlock()
+            lock_manager.LOCK_TIMEOUT = 10
+            lock_manager.retry_count = 3
 
-        yield lock_manager, mock_redis
+            yield lock_manager, mock_redis
 
 
 class TestAioredlock:
