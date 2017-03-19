@@ -55,11 +55,10 @@ In order to clear all the connections with Redis, the lock_manager ``destroy`` m
 To-do
 -----
 
-* Add drift time
-* Randomize the retry delay to avoid lock collisions
-* Raise an exception if the lock cannot be obtained
-* Handle aioredis exceptions when performing operations
-* Expire the lock valid attribute according to the lock validity
+* Allow the user to set a desired lock timeout with 10 seconds default
+* Raise an exception if the lock cannot be obtained so no need to check for `lock.valid`
+* Handle/encapsulate aioredis exceptions when performing operations
+* Expire the lock valid attribute according to the lock validity in a safe way if possible
 * Lock extension
 
 .. _redlock: https://redis.io/topics/distlock
