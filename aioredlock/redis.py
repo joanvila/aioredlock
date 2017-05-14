@@ -10,16 +10,17 @@ class Instance:
         self.port = port
 
         self._pool = None
+        self._lock = asyncio.Lock()
 
     async def connect(self):
         """
         Get an connection for the self instance
         """
         if self._pool is None:
-            async with asyncio.Lock():
+            async with self._lock:
                 if self._pool is None:
                     self._pool = await aioredis.create_pool(
-                        (self.host, self.port), minsize=5)
+                        (self.host, self.port), minsize=1, maxsize=100)
 
         return await self._pool
 

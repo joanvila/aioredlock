@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 
 from asynctest import CoroutineMock, patch
 from unittest.mock import call, MagicMock
@@ -40,6 +41,7 @@ class TestInstance:
         assert instance.host == 'localhost'
         assert instance.port == 6379
         assert instance._pool is None
+        assert isinstance(instance._lock, asyncio.Lock)
 
     @pytest.mark.asyncio
     async def test_connect_pool_not_created(self):
@@ -51,7 +53,7 @@ class TestInstance:
             assert instance._pool is None
             pool = await instance.connect()
 
-            create_pool.assert_called_once_with(('localhost', 6379), minsize=5)
+            create_pool.assert_called_once_with(('localhost', 6379), minsize=1, maxsize=100)
             assert pool is fake_pool
             assert instance._pool is fake_pool
 
