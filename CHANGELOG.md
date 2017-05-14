@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.1 - 2017-05-14
+
+### Changed
+- Updated aioredis requirement version to 0.3.1.
+- Incremented the maxsize connections pool from default to 100.
+
+### Fixed
+- Fixed a bug regarding the asyncio lock usage when creating the connection pool with redis.
+
 ## 0.1.0 - 2017-03-19
 
 ### Added
