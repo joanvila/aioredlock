@@ -25,10 +25,7 @@ def lock_manager_redis_patched():
             mock_redis.run_lua = CoroutineMock()
             mock_redis.clear_connections = CoroutineMock()
 
-            lock_manager = Aioredlock()
-            lock_manager.LOCK_TIMEOUT = 1000
-            lock_manager.retry_count = 3
-            lock_manager.drift = 102
+            lock_manager = Aioredlock(lock_timeout=1000, drift=102)
 
             yield lock_manager, mock_redis
 
@@ -42,7 +39,7 @@ class TestAioredlock:
 
             mock_redis.assert_called_once_with(
                 [{'host': 'localhost', 'port': 6379}],
-                lock_manager.LOCK_TIMEOUT
+                lock_manager.lock_timeout
             )
             assert lock_manager.redis
             assert lock_manager.drift == 102
@@ -54,7 +51,7 @@ class TestAioredlock:
 
             mock_redis.assert_called_once_with(
                 [{'host': '::1', 'port': 1}],
-                lock_manager.LOCK_TIMEOUT
+                lock_manager.lock_timeout
             )
             assert lock_manager.redis
             assert lock_manager.drift == 102

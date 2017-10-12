@@ -1,4 +1,5 @@
 import asyncio
+import attr
 import uuid
 import random
 
@@ -6,10 +7,28 @@ from aioredlock.redis import Redis
 from aioredlock.lock import Lock
 
 
+def validate_lock_timeout(instance, attribute, value):
+    """
+    Validate if lock_timeout is greater than 0
+    """
+    if value <= 0:
+        raise ValueError("Lock timeout must be greater than 0 ms.")
+
+
+@attr.s
 class Aioredlock:
-
-    LOCK_TIMEOUT = 10000  # 10 seconds
-
+    redis_connections = attr.ib(
+        default=[{'host': 'localhost', 'port': 6379}]
+    )
+    lock_timeout = attr.ib(default=10000, convert=int, validator=validate_lock_timeout)
+    # Proportional drift time to the length of the lock
+    # See https://redis.io/topics/distlock#is-the-algorithm-asynchronous for more info
+    drift = attr.ib(default=attr.Factory(
+        lambda self: int(self.lock_timeout * 0.01) + 2, takes_self=True
+    ), convert=int)
+    retry_count = attr.ib(default=3, convert=int)
+    retry_delay_min = attr.ib(default=0.1, convert=float)
+    retry_delay_max = attr.ib(default=0.3, convert=float)
     UNLOCK_SCRIPT = """
     if redis.call("get",KEYS[1]) == ARGV[1] then
         return redis.call("del",KEYS[1])
@@ -17,23 +36,8 @@ class Aioredlock:
         return 0
     end"""
 
-    retry_count = 3
-    retry_delay_min = 0.1
-    retry_delay_max = 0.3
-
-    def __init__(self, redis_connections=[{'host': 'localhost', 'port': 6379}]):
-        """
-        Initializes Aioredlock with the list of redis instances
-
-        :param redis_connections: A list of dicts like:
-        [{"host": "localhost", "port": 6379}]
-        """
-
-        self.redis = Redis(redis_connections, self.LOCK_TIMEOUT)
-
-        # Proportional drift time to the length of the lock
-        # See https://redis.io/topics/distlock#is-the-algorithm-asynchronous for more info
-        self.drift = int(self.LOCK_TIMEOUT * 0.01) + 2
+    def __attrs_post_init__(self):
+        self.redis = Redis(self.redis_connections, self.lock_timeout)
 
     async def lock(self, resource):
         """
@@ -61,7 +65,7 @@ class Aioredlock:
         return random.uniform(self.retry_delay_min, self.retry_delay_max)
 
     def _valid_lock(self, locked, elapsed_time):
-        return locked and int(self.LOCK_TIMEOUT - elapsed_time - self.drift) > 0
+        return locked and int(self.lock_timeout - elapsed_time - self.drift) > 0
 
     async def unlock(self, lock):
         """
