@@ -17,9 +17,7 @@ def validate_lock_timeout(instance, attribute, value):
 
 @attr.s
 class Aioredlock:
-    redis_connections = attr.ib(
-        default=[{'host': 'localhost', 'port': 6379}]
-    )
+    redis_connections = attr.ib(default=[{'host': 'localhost', 'port': 6379}])
     lock_timeout = attr.ib(default=10000, convert=int, validator=validate_lock_timeout)
     # Proportional drift time to the length of the lock
     # See https://redis.io/topics/distlock#is-the-algorithm-asynchronous for more info
