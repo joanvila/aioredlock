@@ -1,11 +1,10 @@
-import pytest
 import asyncio
+from unittest.mock import MagicMock, call
 
+import pytest
 from asynctest import CoroutineMock, patch
-from unittest.mock import call, MagicMock
 
-from aioredlock.redis import Instance
-from aioredlock.redis import Redis
+from aioredlock.redis import Instance, Redis
 
 
 class FakePool:
@@ -45,15 +44,15 @@ class TestInstance:
 
     @pytest.mark.asyncio
     async def test_connect_pool_not_created(self):
-        with patch("aioredis.create_pool") as create_pool:
+        with patch('aioredlock.redis.create_redis_pool') as create_redis_pool:
             fake_pool = FakePool()
-            create_pool.return_value = fake_pool
+            create_redis_pool.return_value = fake_pool
             instance = Instance('localhost', 6379)
 
             assert instance._pool is None
             pool = await instance.connect()
 
-            create_pool.assert_called_once_with(
+            create_redis_pool.assert_called_once_with(
                 ('localhost', 6379),
                 db=0, password=None,
                 minsize=1, maxsize=100)
@@ -62,14 +61,15 @@ class TestInstance:
 
     @pytest.mark.asyncio
     async def test_connect_pool_already_created(self):
-        with patch("aioredis.create_pool") as create_pool:
+
+        with patch('aioredlock.redis.create_redis_pool') as create_redis_pool:
             instance = Instance('localhost', 6379)
             fake_pool = FakePool()
             instance._pool = fake_pool
 
             pool = await instance.connect()
 
-            assert not create_pool.called
+            assert not create_redis_pool.called
             assert pool is fake_pool
 
 
@@ -135,7 +135,8 @@ class TestRedis:
         locked, elapsed_time = await redis.set_lock('resource', 'lock_id')
 
         calls = [
-            call('resource', 'lock_id', pexpire=10, exist=pool.SET_IF_NOT_EXIST),
+            call('resource', 'lock_id', pexpire=10,
+                 exist=pool.SET_IF_NOT_EXIST),
             call('resource', 'lock_id', pexpire=10, exist=pool.SET_IF_NOT_EXIST)
         ]
         pool.set.assert_has_calls(calls)
@@ -149,7 +150,8 @@ class TestRedis:
         locked, elapsed_time = await redis.set_lock('resource', 'lock_id')
 
         calls = [
-            call('resource', 'lock_id', pexpire=10, exist=pool.SET_IF_NOT_EXIST),
+            call('resource', 'lock_id', pexpire=10,
+                 exist=pool.SET_IF_NOT_EXIST),
             call('resource', 'lock_id', pexpire=10, exist=pool.SET_IF_NOT_EXIST)
         ]
         pool.set.assert_has_calls(calls)
@@ -173,8 +175,10 @@ class TestRedis:
         locked, elapsed_time = await redis.set_lock('resource', 'lock_id')
 
         calls = [
-            call('resource', 'lock_id', pexpire=10, exist=pool.SET_IF_NOT_EXIST),
-            call('resource', 'lock_id', pexpire=10, exist=pool.SET_IF_NOT_EXIST),
+            call('resource', 'lock_id', pexpire=10,
+                 exist=pool.SET_IF_NOT_EXIST),
+            call('resource', 'lock_id', pexpire=10,
+                 exist=pool.SET_IF_NOT_EXIST),
             call('resource', 'lock_id', pexpire=10, exist=pool.SET_IF_NOT_EXIST)
         ]
         pool.set.assert_has_calls(calls)

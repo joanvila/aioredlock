@@ -1,6 +1,23 @@
 import asyncio
-import aioredis
 import time
+from distutils.version import StrictVersion
+
+import aioredis
+
+
+async def create_redis_pool(*args, **kwargs):
+    """
+    Adaptor to support both aioredis-0.3.0 and aioredis-1.0.0
+    For aioredis-1.0.0 and later calls:
+        aioredis.create_redis_pool(*args, **kwargs)
+    For aioredis-0.3.0 calls:
+        aioredis.create_pool(*args, **kwargs)
+    """
+
+    if StrictVersion(aioredis.__version__) >= StrictVersion('1.0.0'):
+        return await aioredis.create_redis_pool(*args, **kwargs)
+    else:
+        return await aioredis.create_pool(*args, **kwargs)
 
 
 class Instance:
@@ -21,7 +38,7 @@ class Instance:
         if self._pool is None:
             async with self._lock:
                 if self._pool is None:
-                    self._pool = await aioredis.create_pool(
+                    self._pool = await create_redis_pool(
                         (self.host, self.port),
                         db=self.db, password=self.password,
                         minsize=1, maxsize=100)
@@ -59,7 +76,8 @@ class Redis:
                 successful_sets += 1
 
         elapsed_time = int(time.time() * 1000) - start_time
-        locked = True if successful_sets >= int(len(self.instances)/2) + 1 else False
+        locked = True if successful_sets >= int(
+            len(self.instances) / 2) + 1 else False
 
         return (locked, elapsed_time)
 
