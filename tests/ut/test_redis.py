@@ -1,10 +1,23 @@
 import asyncio
+import hashlib
 from unittest.mock import MagicMock, call
 
+import aioredis
 import pytest
 from asynctest import CoroutineMock, patch
 
 from aioredlock.redis import Instance, Redis
+
+
+def callculate_sha1(text):
+    sha1 = hashlib.sha1()
+    sha1.update(text.encode())
+    digest = sha1.hexdigest()
+    return digest
+
+
+EVAL_ERROR = aioredis.errors.ReplyError('ERROR')
+EVAL_OK = b'OK'
 
 
 class FakePool:
@@ -12,8 +25,11 @@ class FakePool:
     SET_IF_NOT_EXIST = 'SET_IF_NOT_EXIST'
 
     def __init__(self):
-        self.set = CoroutineMock(return_value=True)
-        self.eval = CoroutineMock()
+
+        self.script_cache = {}
+
+        self.evalsha = CoroutineMock(return_value=True)
+        self.script_load = CoroutineMock(side_effect=self._fake_script_load)
 
     def __await__(self):
         yield
@@ -32,15 +48,30 @@ class FakePool:
         # Only for development purposes
         return True
 
+    async def _fake_script_load(self, script):
+
+        digest = callculate_sha1(script)
+        self.script_cache[digest] = script
+
+        return digest.encode()
+
 
 class TestInstance:
 
+    script_names = ['SET_LOCK_SCRIPT', 'UNSET_LOCK_SCRIPT']
+
     def test_initialization(self):
+
         instance = Instance('localhost', 6379)
+
         assert instance.host == 'localhost'
         assert instance.port == 6379
         assert instance._pool is None
         assert isinstance(instance._lock, asyncio.Lock)
+
+        # scripts
+        for name in self.script_names:
+            assert getattr(instance, '%s_sha1' % name.lower()) is None
 
     @pytest.mark.asyncio
     async def test_connect_pool_not_created(self):
@@ -60,6 +91,13 @@ class TestInstance:
             assert pool is fake_pool
             assert instance._pool is fake_pool
 
+            # scripts
+            assert pool.script_load.call_count == len(self.script_names)
+            for name in self.script_names:
+                digest = getattr(instance, '%s_sha1' % name.lower())
+                assert digest
+                assert digest in pool.script_cache
+
     @pytest.mark.asyncio
     async def test_connect_pool_already_created(self):
 
@@ -73,6 +111,46 @@ class TestInstance:
 
             assert not create_redis_pool.called
             assert pool is fake_pool
+
+            # scripts
+            assert pool.script_load.call_count == 0
+
+    @pytest.fixture
+    def fake_instance(self):
+        with patch('aioredlock.redis.Instance._create_redis_pool') as \
+                create_redis_pool:
+            fake_pool = FakePool()
+            create_redis_pool.return_value = fake_pool
+            instance = Instance('localhost', 6379)
+            yield instance
+
+    @pytest.mark.asyncio
+    async def test_lock(self, fake_instance):
+        instance = fake_instance
+        await instance.connect()
+        pool = instance._pool
+
+        await instance.set_lock('resource', 'lock_id', 10000)
+
+        pool.evalsha.assert_called_once_with(
+            instance.set_lock_script_sha1,
+            keys=['resource'],
+            args=['lock_id', 10000]
+        )
+
+    @pytest.mark.asyncio
+    async def test_unset_lock(self, fake_instance):
+        instance = fake_instance
+        await instance.connect()
+        pool = instance._pool
+
+        await instance.unset_lock('resource', 'lock_id')
+
+        pool.evalsha.assert_called_once_with(
+            instance.unset_lock_script_sha1,
+            keys=['resource'],
+            args=['lock_id']
+        )
 
 
 @pytest.fixture
@@ -130,75 +208,75 @@ class TestRedis:
             assert len(redis.instances) == 2
             assert redis.lock_timeout == 10
 
-    @pytest.mark.asyncio
-    async def test_set_lock(self, mock_redis_two_instances):
-        redis, pool = mock_redis_two_instances
-
-        locked, elapsed_time = await redis.set_lock('resource', 'lock_id')
-
-        calls = [
-            call('resource', 'lock_id', pexpire=10,
-                 exist=pool.SET_IF_NOT_EXIST),
-            call('resource', 'lock_id', pexpire=10, exist=pool.SET_IF_NOT_EXIST)
-        ]
-        pool.set.assert_has_calls(calls)
-        assert locked is True
+    parametrize_methods = pytest.mark.parametrize("method_name, call_args", [
+        ('set_lock', {'keys': ['resource'], 'args':['lock_id', 10]}),
+        ('unset_lock', {'keys': ['resource'], 'args':['lock_id']}),
+    ])
 
     @pytest.mark.asyncio
-    async def test_set_lock_one_of_two_instances_failed(self, mock_redis_two_instances):
+    @parametrize_methods
+    async def test_lock(
+            self, mock_redis_two_instances,
+            method_name, call_args
+    ):
         redis, pool = mock_redis_two_instances
-        pool.set = CoroutineMock(side_effect=[False, True])
 
-        locked, elapsed_time = await redis.set_lock('resource', 'lock_id')
+        method = getattr(redis, method_name)
+        script_sha1 = getattr(redis.instances[0],
+                              '%s_script_sha1' % method_name)
 
-        calls = [
-            call('resource', 'lock_id', pexpire=10,
-                 exist=pool.SET_IF_NOT_EXIST),
-            call('resource', 'lock_id', pexpire=10, exist=pool.SET_IF_NOT_EXIST)
-        ]
-        pool.set.assert_has_calls(calls)
-        assert locked is False
+        success, elapsed_time = await method('resource', 'lock_id')
+
+        calls = [call(script_sha1, **call_args)] * 2
+        pool.evalsha.assert_has_calls(calls)
+        assert success is True
+
+    @pytest.mark.asyncio
+    @parametrize_methods
+    async def test_lock_one_of_two_instances_failed(
+            self, mock_redis_two_instances,
+            method_name, call_args
+    ):
+        redis, pool = mock_redis_two_instances
+        pool.evalsha = CoroutineMock(side_effect=[EVAL_ERROR, EVAL_OK])
+
+        method = getattr(redis, method_name)
+        script_sha1 = getattr(redis.instances[0],
+                              '%s_script_sha1' % method_name)
+
+        success, elapsed_time = await method('resource', 'lock_id')
+
+        calls = [call(script_sha1, **call_args)] * 2
+        pool.evalsha.assert_has_calls(calls)
+        assert success is False
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("redis_failures, lock_acquired", [
-        ([True, True, True], True),
-        ([True, True, False], True),
-        ([True, False, False], False),
-        ([False, False, False], False),
+        ([EVAL_OK, EVAL_OK, EVAL_OK], True),
+        ([EVAL_OK, EVAL_OK, EVAL_ERROR], True),
+        ([EVAL_OK, EVAL_ERROR, EVAL_ERROR], False),
+        ([EVAL_ERROR, EVAL_ERROR, EVAL_ERROR], False),
     ])
-    async def test_set_three_instances_combination(
+    @parametrize_methods
+    async def test_three_instances_combination(
             self,
             mock_redis_three_instances,
             redis_failures,
-            lock_acquired):
+            lock_acquired,
+            method_name, call_args
+    ):
         redis, pool = mock_redis_three_instances
-        pool.set = CoroutineMock(side_effect=redis_failures)
+        pool.evalsha = CoroutineMock(side_effect=redis_failures)
 
-        locked, elapsed_time = await redis.set_lock('resource', 'lock_id')
+        method = getattr(redis, method_name)
+        script_sha1 = getattr(redis.instances[0],
+                              '%s_script_sha1' % method_name)
 
-        calls = [
-            call('resource', 'lock_id', pexpire=10,
-                 exist=pool.SET_IF_NOT_EXIST),
-            call('resource', 'lock_id', pexpire=10,
-                 exist=pool.SET_IF_NOT_EXIST),
-            call('resource', 'lock_id', pexpire=10, exist=pool.SET_IF_NOT_EXIST)
-        ]
-        pool.set.assert_has_calls(calls)
-        assert locked is lock_acquired
+        success, elapsed_time = await method('resource', 'lock_id')
 
-    @pytest.mark.asyncio
-    async def test_run_lua(self, mock_redis_two_instances):
-        redis, pool = mock_redis_two_instances
-        keys = ['k1', 'k2']
-        args = ['a1', 'a2']
-
-        await redis.run_lua('script', keys=keys, args=args)
-
-        calls = [
-            call('script', keys=keys, args=args),
-            call('script', keys=keys, args=args)
-        ]
-        pool.eval.assert_has_calls(calls)
+        calls = [call(script_sha1, **call_args)] * 3
+        pool.evalsha.assert_has_calls(calls)
+        assert success is lock_acquired
 
     @pytest.mark.asyncio
     async def test_clear_connections(self, mock_redis_two_instances):
