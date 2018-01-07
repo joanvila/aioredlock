@@ -5,9 +5,11 @@ import time
 
 class Instance:
 
-    def __init__(self, host, port):
+    def __init__(self, host='localhost', port=6379, db=0, password=None):
         self.host = host
         self.port = port
+        self.db = db
+        self.password = password
 
         self._pool = None
         self._lock = asyncio.Lock()
@@ -20,7 +22,9 @@ class Instance:
             async with self._lock:
                 if self._pool is None:
                     self._pool = await aioredis.create_pool(
-                        (self.host, self.port), minsize=1, maxsize=100)
+                        (self.host, self.port),
+                        db=self.db, password=self.password,
+                        minsize=1, maxsize=100)
 
         return await self._pool
 
@@ -32,7 +36,7 @@ class Redis:
         self.instances = []
         for connection in redis_connections:
             self.instances.append(
-                Instance(connection['host'], connection['port']))
+                Instance(**connection))
 
         self.lock_timeout = lock_timeout
 
