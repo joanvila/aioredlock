@@ -35,6 +35,9 @@ Usage
   # Try to acquire the lock:
   lock = await lock_manager.lock("resource_name")
 
+  # extend lock lifetime
+  await lock_manager.extend(lock)
+
   # Release the lock:
   await lock_manager.unlock(lock)
 
@@ -50,6 +53,8 @@ In order to acquire the lock, the ``lock`` function should be called. If the loc
 
 From that moment, the lock is valid until the ``unlock`` function is called or when the 10 seconds timeout is reached.
 
+To extend lock lifetime for more 10 seconds call ``extend`` function.
+
 In order to clear all the connections with Redis, the lock_manager ``destroy`` method can be called.
 
 To-do
@@ -59,7 +64,6 @@ To-do
 * Raise an exception if the lock cannot be obtained so no need to check for `lock.valid`
 * Handle/encapsulate aioredis exceptions when performing operations
 * Expire the lock valid attribute according to the lock validity in a safe way if possible
-* Lock extension
 
 .. _redlock: https://redis.io/topics/distlock
 .. _Redis: https://redis.io
