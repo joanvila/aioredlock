@@ -5,21 +5,6 @@ from distutils.version import StrictVersion
 import aioredis
 
 
-async def create_redis_pool(*args, **kwargs):
-    """
-    Adaptor to support both aioredis-0.3.0 and aioredis-1.0.0
-    For aioredis-1.0.0 and later calls:
-        aioredis.create_redis_pool(*args, **kwargs)
-    For aioredis-0.3.0 calls:
-        aioredis.create_pool(*args, **kwargs)
-    """
-
-    if StrictVersion(aioredis.__version__) >= StrictVersion('1.0.0'):
-        return await aioredis.create_redis_pool(*args, **kwargs)
-    else:
-        return await aioredis.create_pool(*args, **kwargs)
-
-
 class Instance:
 
     def __init__(self, host='localhost', port=6379, db=0, password=None):
@@ -31,6 +16,21 @@ class Instance:
         self._pool = None
         self._lock = asyncio.Lock()
 
+    @staticmethod
+    async def _create_redis_pool(*args, **kwargs):
+        """
+        Adaptor to support both aioredis-0.3.0 and aioredis-1.0.0
+        For aioredis-1.0.0 and later calls:
+            aioredis.create_redis_pool(*args, **kwargs)
+        For aioredis-0.3.0 calls:
+            aioredis.create_pool(*args, **kwargs)
+        """
+
+        if StrictVersion(aioredis.__version__) >= StrictVersion('1.0.0'):
+            return await aioredis.create_redis_pool(*args, **kwargs)
+        else:
+            return await aioredis.create_pool(*args, **kwargs)
+
     async def connect(self):
         """
         Get an connection for the self instance
@@ -38,7 +38,7 @@ class Instance:
         if self._pool is None:
             async with self._lock:
                 if self._pool is None:
-                    self._pool = await create_redis_pool(
+                    self._pool = await self._create_redis_pool(
                         (self.host, self.port),
                         db=self.db, password=self.password,
                         minsize=1, maxsize=100)

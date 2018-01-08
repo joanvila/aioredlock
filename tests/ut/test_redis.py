@@ -44,7 +44,8 @@ class TestInstance:
 
     @pytest.mark.asyncio
     async def test_connect_pool_not_created(self):
-        with patch('aioredlock.redis.create_redis_pool') as create_redis_pool:
+        with patch('aioredlock.redis.Instance._create_redis_pool') as \
+                create_redis_pool:
             fake_pool = FakePool()
             create_redis_pool.return_value = fake_pool
             instance = Instance('localhost', 6379)
@@ -62,7 +63,8 @@ class TestInstance:
     @pytest.mark.asyncio
     async def test_connect_pool_already_created(self):
 
-        with patch('aioredlock.redis.create_redis_pool') as create_redis_pool:
+        with patch('aioredlock.redis.Instance._create_redis_pool') as \
+                create_redis_pool:
             instance = Instance('localhost', 6379)
             fake_pool = FakePool()
             instance._pool = fake_pool
