@@ -6,6 +6,7 @@ import aioredis
 import pytest
 from asynctest import CoroutineMock, patch
 
+from aioredlock.errors import LockError
 from aioredlock.redis import Instance, Redis
 
 
@@ -225,11 +226,10 @@ class TestRedis:
         script_sha1 = getattr(redis.instances[0],
                               '%s_script_sha1' % method_name)
 
-        success, elapsed_time = await method('resource', 'lock_id')
+        await method('resource', 'lock_id')
 
         calls = [call(script_sha1, **call_args)] * 2
         pool.evalsha.assert_has_calls(calls)
-        assert success is True
 
     @pytest.mark.asyncio
     @parametrize_methods
@@ -244,14 +244,14 @@ class TestRedis:
         script_sha1 = getattr(redis.instances[0],
                               '%s_script_sha1' % method_name)
 
-        success, elapsed_time = await method('resource', 'lock_id')
+        with pytest.raises(LockError):
+            await method('resource', 'lock_id')
 
         calls = [call(script_sha1, **call_args)] * 2
         pool.evalsha.assert_has_calls(calls)
-        assert success is False
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("redis_failures, lock_acquired", [
+    @pytest.mark.parametrize("redis_result, success", [
         ([EVAL_OK, EVAL_OK, EVAL_OK], True),
         ([EVAL_OK, EVAL_OK, EVAL_ERROR], True),
         ([EVAL_OK, EVAL_ERROR, EVAL_ERROR], False),
@@ -261,22 +261,25 @@ class TestRedis:
     async def test_three_instances_combination(
             self,
             mock_redis_three_instances,
-            redis_failures,
-            lock_acquired,
+            redis_result,
+            success,
             method_name, call_args
     ):
         redis, pool = mock_redis_three_instances
-        pool.evalsha = CoroutineMock(side_effect=redis_failures)
+        pool.evalsha = CoroutineMock(side_effect=redis_result)
 
         method = getattr(redis, method_name)
         script_sha1 = getattr(redis.instances[0],
                               '%s_script_sha1' % method_name)
 
-        success, elapsed_time = await method('resource', 'lock_id')
+        if success:
+            await method('resource', 'lock_id')
+        else:
+            with pytest.raises(LockError):
+                await method('resource', 'lock_id')
 
         calls = [call(script_sha1, **call_args)] * 3
         pool.evalsha.assert_has_calls(calls)
-        assert success is lock_acquired
 
     @pytest.mark.asyncio
     async def test_clear_connections(self, mock_redis_two_instances):

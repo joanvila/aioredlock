@@ -22,7 +22,7 @@ Usage
 -----
 .. code-block:: python
 
-  from aioredlock import Aioredlock
+  from aioredlock import Aioredlock, LockError
 
   # Define a list of connections to your Redis instances:
   redis_instances = [
@@ -33,13 +33,21 @@ Usage
   lock_manager = Aioredlock(redis_instances)
 
   # Try to acquire the lock:
-  lock = await lock_manager.lock("resource_name")
+  try:
+      lock = await lock_manager.lock("resource_name")
+  except LockError:
+      print('Lock not acquired')
+      raise
 
   # extend lock lifetime
   await lock_manager.extend(lock)
+  # raises LockError if can not extend lock lifetime
+  # on more then half redis instances
 
   # Release the lock:
   await lock_manager.unlock(lock)
+  # raises LockError if can not release lock
+  # on more then half redis instances
 
   # Clear the connections with Redis
   await lock_manager.destroy()
@@ -49,7 +57,7 @@ How it works
 ------------
 
 The Aioredlock constructor takes a list of connections (host and port) where the Redis instances are running as a required parameter.
-In order to acquire the lock, the ``lock`` function should be called. If the lock operation is successful, ``lock.valid`` will be true.
+In order to acquire the lock, the ``lock`` function should be called. If the lock operation is successful, ``lock.valid`` will be true, if lock is not acquired then LockError will be raised.
 
 From that moment, the lock is valid until the ``unlock`` function is called or when the 10 seconds timeout is reached.
 
@@ -61,8 +69,6 @@ To-do
 -----
 
 * Allow the user to set a desired lock timeout with 10 seconds default
-* Raise an exception if the lock cannot be obtained so no need to check for `lock.valid`
-* Handle/encapsulate aioredis exceptions when performing operations
 * Expire the lock valid attribute according to the lock validity in a safe way if possible
 
 .. _redlock: https://redis.io/topics/distlock
