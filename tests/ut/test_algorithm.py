@@ -180,6 +180,28 @@ class TestAioredlock:
         assert lock.valid is False
 
     @pytest.mark.asyncio
+    async def test_extend_lock(self, lock_manager_redis_patched, locked_lock):
+        lock_manager, redis = lock_manager_redis_patched
+
+        lock = await lock_manager.lock('resource')
+        success = await lock_manager.extend(lock)
+
+        calls = [
+            call('resource', ANY),
+            call('resource', ANY)
+        ]
+        redis.set_lock.assert_has_calls(calls)
+
+        assert lock.resource == 'resource'
+        assert lock.id == ANY
+        assert lock.valid is True
+        assert success
+
+        await lock_manager.unlock(lock)
+        with pytest.raises(RuntimeError):
+            await lock_manager.extend(lock)
+
+    @pytest.mark.asyncio
     async def test_unlock(self, lock_manager_redis_patched, locked_lock):
         lock_manager, redis = lock_manager_redis_patched
 

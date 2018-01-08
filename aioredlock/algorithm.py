@@ -62,6 +62,26 @@ class Aioredlock:
     def _valid_lock(self, locked, elapsed_time):
         return locked and int(self.LOCK_TIMEOUT - elapsed_time - self.drift) > 0
 
+    async def extend(self, lock):
+        """
+        Tries to extend lock lifetime by lock_timeout
+        Returns True if the lock is valid and lifetime correctly extended on
+        more then half redis instances.
+        Returns False if can not extend more then half of instances
+
+        :param lock: :class:`aioredlock.Lock`
+        :return: True or False
+        :raises: RuntimeError if lock is not valid
+        """
+
+        if not lock.valid:
+            raise RuntimeError('Lock is not valid')
+
+        extended, elapsed_time = await self.redis.set_lock(
+            lock.resource, lock.id)
+
+        return extended
+
     async def unlock(self, lock):
         """
         Release the lock and sets it's validity to False if

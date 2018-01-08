@@ -30,6 +30,10 @@ class TestAioredlock:
         lock = await lock_manager.lock(resource)
         assert lock.valid is True
 
+        success = await lock_manager.extend(lock)
+        assert success
+        assert lock.valid is True
+
         await lock_manager.unlock(lock)
         assert lock.valid is False
 
