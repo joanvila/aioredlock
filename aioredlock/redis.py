@@ -1,6 +1,7 @@
 import asyncio
 import time
 from distutils.version import StrictVersion
+from aioredlock.errors import LockError
 
 import aioredis
 import re
@@ -22,7 +23,10 @@ class Instance:
     # KEYS[1] - lock resource key
     # ARGS[1] - lock uniquie identifier
     UNSET_LOCK_SCRIPT = """
-    if redis.call("get",KEYS[1]) == ARGV[1] then
+    local identifier = redis.call('get', KEYS[1])
+    if not identifier then
+        return redis.status_reply('OK')
+    elseif identifier == ARGV[1] then
         return redis.call("del", KEYS[1])
     else
         return redis.error_reply('ERROR')
@@ -87,11 +91,11 @@ class Instance:
 
     async def set_lock(self, resource, lock_identifier, lock_timeout):
         """
-        Lock this instance and set lock expiration time to self.lock_timeout
+        Lock this instance and set lock expiration time to lock_timeout
         :param resource: redis key to set
         :param lock_identifier: uniquie id of lock
         :param lock_timeout: timeout for lock in milliseconds
-        returns: True if lock is acquired else False
+        :raises: LockError if lock is not acquired
         """
         try:
             with await self.connect() as redis:
@@ -100,17 +104,16 @@ class Instance:
                     keys=[resource],
                     args=[lock_identifier, lock_timeout]
                 )
-        except aioredis.errors.ReplyError:
-            return False
-        else:
-            return True
+        except aioredis.errors.RedisError as exc:
+            raise LockError('Can not acquire lock') from exc
 
     async def unset_lock(self, resource, lock_identifier):
         """
         Unlock this instance
         :param resource: redis key to set
         :param lock_identifier: uniquie id of lock
-        returns: True if lock is released else False
+        :raises: LockError if lock resource acquired with
+            different lock_identifier
         """
         try:
             with await self.connect() as redis:
@@ -119,10 +122,8 @@ class Instance:
                     keys=[resource],
                     args=[lock_identifier]
                 )
-        except aioredis.errors.ReplyError:
-            return False
-        else:
-            return True
+        except aioredis.errors.RedisError as exc:
+            raise LockError('Can not acquire lock') from exc
 
 
 class Redis:
@@ -142,9 +143,10 @@ class Redis:
 
         :param resource: The resource string name to lock
         :param lock_identifier: The id of the lock. A unique string
-        :return tuple: A True boolean if the lock has been set to at least
-            (N/2 + 1) instances or a False if not and the elapsed time
-            that took to lock the instances
+        :return int: The elapsed time that took to lock the instances
+            in milliseconds
+        :raises: LockError if the lock has not been set to at least (N/2 + 1)
+            instances
         """
         start_time = int(time.time() * 1000)
         lock_timeout = self.lock_timeout
@@ -152,14 +154,17 @@ class Redis:
         successes = await asyncio.gather(*[
             i.set_lock(resource, lock_identifier, lock_timeout) for
             i in self.instances
-        ])
-        successful_sets = sum(successes)
+        ], return_exceptions=True)
+        successful_sets = sum(s is None for s in successes)
 
         elapsed_time = int(time.time() * 1000) - start_time
         locked = True if successful_sets >= int(
             len(self.instances) / 2) + 1 else False
 
-        return (locked, elapsed_time)
+        if not locked:
+            raise LockError('Can not acquire lock')
+
+        return elapsed_time
 
     async def unset_lock(self, resource, lock_identifier):
         """
@@ -167,23 +172,27 @@ class Redis:
 
         :param resource: The resource string name to lock
         :param lock_identifier: The id of the lock. A unique string
-        :return tuple: A True boolean if the lock has been set to at least
-            (N/2 + 1) instances or a False if not and the elapsed time
-            that took to unlock the instances
+        :return int: The elapsed time that took to lock the instances
+            in milliseconds
+        :raises: LockError if the lock has not mathing identifier in more then
+            (N/2 - 1) instances
         """
         start_time = int(time.time() * 1000)
 
         successes = await asyncio.gather(*[
             i.unset_lock(resource, lock_identifier) for
             i in self.instances
-        ])
-        successful_unsets = sum(successes)
+        ], return_exceptions=True)
+        successful_remvoes = sum(s is None for s in successes)
 
         elapsed_time = int(time.time() * 1000) - start_time
-        locked = True if successful_unsets >= int(
+        unlocked = True if successful_remvoes >= int(
             len(self.instances) / 2) + 1 else False
 
-        return (locked, elapsed_time)
+        if not unlocked:
+            raise LockError('Can not release lock')
+
+        return elapsed_time
 
     async def clear_connections(self):
         for i in self.instances:

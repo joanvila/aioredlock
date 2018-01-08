@@ -1,5 +1,5 @@
 import asyncio
-from aioredlock import Aioredlock
+from aioredlock import Aioredlock, LockError
 
 
 async def basic_lock():
@@ -10,7 +10,12 @@ async def basic_lock():
         'password': None
     }])
 
-    lock = await lock_manager.lock("resource")
+    try:
+        lock = await lock_manager.lock("resource")
+    except LockError:
+        print('"resource" key might be not empty. Please call '
+              '"del resource" in redis-cli')
+        raise
     assert lock.valid is True
 
     # Do your stuff having the lock

@@ -6,7 +6,7 @@ import aioredis
 import asynctest
 import pytest
 
-from aioredlock import Aioredlock
+from aioredlock import Aioredlock, LockError
 
 
 @pytest.fixture
@@ -30,8 +30,7 @@ class TestAioredlock:
         lock = await lock_manager.lock(resource)
         assert lock.valid is True
 
-        success = await lock_manager.extend(lock)
-        assert success
+        await lock_manager.extend(lock)
         assert lock.valid is True
 
         await lock_manager.unlock(lock)
@@ -62,8 +61,8 @@ class TestAioredlock:
         lock1 = await lock_manager.lock(resource)
         assert lock1.valid is True
 
-        lock2 = await lock_manager.lock(resource)
-        assert lock2.valid is False
+        with pytest.raises(LockError):
+            await lock_manager.lock(resource)
 
         await lock_manager.unlock(lock1)
         assert lock1.valid is False
