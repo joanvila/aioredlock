@@ -34,11 +34,24 @@ class Instance:
         return redis.error_reply('ERROR')
     end"""
 
-    def __init__(self, host='localhost', port=6379, db=0, password=None):
-        self.host = host
-        self.port = port
-        self.db = db
-        self.password = password
+    def __init__(self, connection):
+        """
+        Redis instance constructor
+
+        Constructor takes single argument - a redis host address
+        An address can be one of the following:
+         * a dict - {'host': 'localhost', 'port': 6379,
+                     'db': 0, 'password': 'pass'}
+           all keys except host and port will be passed as kwargs to
+           aioredis.create_redis_pool();
+         * a Redis URI - "redis://host:6379/0?encoding=utf-8";
+         * a (host, port) tuple - ('localhost', 6379);
+         * or a unix domain socket path string - "/path/to/redis.sock".
+
+        :param connection: redis host address (dict, tuple or str)
+        """
+
+        self.connection = connection
 
         self._pool = None
         self._lock = asyncio.Lock()
@@ -51,8 +64,7 @@ class Instance:
         return logging.getLogger(__name__)
 
     def __repr__(self):
-        return "<%s(host='%s', port=%d, db=%d)>" % (
-            self.__class__.__name__, self.host, self.port, self.db)
+        return "<%s(connection='%s'>" % (self.__class__.__name__, self.connection)
 
     @staticmethod
     async def _create_redis_pool(*args, **kwargs):
@@ -87,13 +99,29 @@ class Instance:
         """
         Get an connection for the self instance
         """
+
+        if isinstance(self.connection, dict):
+            # dict like {'host': 'localhost', 'port': 6379,
+            #            'db': 0, 'password': 'pass'}
+            kwargs = self.connection.copy()
+            address = (
+                kwargs.pop('host', 'localhost'),
+                kwargs.pop('port', 6379)
+            )
+            redis_kwargs = kwargs
+        else:
+            # tuple or list ('localhost', 6379)
+            # string "redis://host:6379/0?encoding=utf-8" or
+            # a unix domain socket path "/path/to/redis.sock"
+            address = self.connection
+            redis_kwargs = {}
+
         if self._pool is None:
             async with self._lock:
                 if self._pool is None:
                     self.log.debug('Connecting %s', repr(self))
                     self._pool = await self._create_redis_pool(
-                        (self.host, self.port),
-                        db=self.db, password=self.password,
+                        address, **redis_kwargs,
                         minsize=1, maxsize=100)
                     with await self._pool as redis:
                         await self._register_scripts(redis)
@@ -175,8 +203,7 @@ class Redis:
 
         self.instances = []
         for connection in redis_connections:
-            self.instances.append(
-                Instance(**connection))
+            self.instances.append(Instance(connection))
 
         self.lock_timeout = lock_timeout
 

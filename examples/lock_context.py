@@ -3,12 +3,12 @@ from aioredlock import Aioredlock, LockError
 
 
 async def lock_context():
-    lock_manager = Aioredlock([{
-        'host': 'localhost',
-        'port': 6379,
-        'db': 0,
-        'password': None
-    }])
+    lock_manager = Aioredlock([
+        'redis://localhost:6379/0',
+        'redis://localhost:6379/1',
+        'redis://localhost:6379/2',
+        'redis://localhost:6379/3',
+    ])
 
     try:
         async with await lock_manager.lock("resource") as lock:

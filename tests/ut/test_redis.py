@@ -66,10 +66,9 @@ class TestInstance:
 
     def test_initialization(self):
 
-        instance = Instance('localhost', 6379)
+        instance = Instance(('localhost', 6379))
 
-        assert instance.host == 'localhost'
-        assert instance.port == 6379
+        assert instance.connection == ('localhost', 6379)
         assert instance._pool is None
         assert isinstance(instance._lock, asyncio.Lock)
 
@@ -77,20 +76,26 @@ class TestInstance:
         for name in self.script_names:
             assert getattr(instance, '%s_sha1' % name.lower()) is None
 
+    @pytest.mark.parametrize("connection, address, redis_kwargs", [
+        (('localhost', 6379), ('localhost', 6379), {}),
+        ({'host': 'localhost', 'port': 6379, 'db': 0, 'password': 'pass'},
+            ('localhost', 6379), {'db': 0, 'password': 'pass'}),
+        ("redis://host:6379/0?encoding=utf-8",
+            "redis://host:6379/0?encoding=utf-8", {})
+    ])
     @pytest.mark.asyncio
-    async def test_connect_pool_not_created(self):
+    async def test_connect_pool_not_created(self, connection, address, redis_kwargs):
         with patch('aioredlock.redis.Instance._create_redis_pool') as \
                 create_redis_pool:
             fake_pool = FakePool()
             create_redis_pool.return_value = fake_pool
-            instance = Instance('localhost', 6379)
+            instance = Instance(connection)
 
             assert instance._pool is None
             pool = await instance.connect()
 
             create_redis_pool.assert_called_once_with(
-                ('localhost', 6379),
-                db=0, password=None,
+                address, **redis_kwargs,
                 minsize=1, maxsize=100)
             assert pool is fake_pool
             assert instance._pool is fake_pool
@@ -107,7 +112,7 @@ class TestInstance:
 
         with patch('aioredlock.redis.Instance._create_redis_pool') as \
                 create_redis_pool:
-            instance = Instance('localhost', 6379)
+            instance = Instance(('localhost', 6379))
             fake_pool = FakePool()
             instance._pool = fake_pool
 
@@ -125,7 +130,7 @@ class TestInstance:
                 create_redis_pool:
             fake_pool = FakePool()
             create_redis_pool.return_value = fake_pool
-            instance = Instance('localhost', 6379)
+            instance = Instance(('localhost', 6379))
             yield instance
 
     @pytest.mark.asyncio
@@ -205,8 +210,8 @@ class TestRedis:
             redis = Redis(redis_two_connections, 10)
 
             calls = [
-                call(host='localhost', port=6379),
-                call(host='127.0.0.1', port=6378)
+                call({'host': 'localhost', 'port': 6379}),
+                call({'host': '127.0.0.1', 'port': 6378})
             ]
             mock_instance.assert_has_calls(calls)
             assert len(redis.instances) == 2
