@@ -16,7 +16,7 @@ real_sleep = asyncio.sleep
 
 @pytest.fixture
 def locked_lock():
-    return Lock("resource_name", 1, True)
+    return Lock(None, "resource_name", 1, True)
 
 
 @pytest.fixture
