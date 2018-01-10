@@ -78,7 +78,7 @@ class Aioredlock:
 
             raise
 
-        return Lock(resource, lock_identifier, valid=True)
+        return Lock(self, resource, lock_identifier, valid=True)
 
     async def extend(self, lock):
         """

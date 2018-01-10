@@ -233,6 +233,25 @@ class TestAioredlock:
         assert locked_lock.valid is False
 
     @pytest.mark.asyncio
+    async def test_context_manager(self, lock_manager_redis_patched):
+        lock_manager, redis = lock_manager_redis_patched
+
+        async with await lock_manager.lock('resource') as lock:
+            assert lock.resource == 'resource'
+            assert lock.id == ANY
+            assert lock.valid is True
+            await lock.extend()
+
+        assert lock.valid is False
+
+        calls = [
+            call('resource', ANY),
+            call('resource', ANY)
+        ]
+        redis.set_lock.assert_has_calls(calls)
+        redis.unset_lock.assert_called_once_with('resource', ANY)
+
+    @pytest.mark.asyncio
     async def test_destroy_lock_manager(self, lock_manager_redis_patched):
         lock_manager, redis = lock_manager_redis_patched
 
