@@ -10,7 +10,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 setup(
     name='aioredlock',
 
-    version='0.1.1',
+    version='0.2.0',
 
     description='Asyncio implemetation of Redis distributed locks',
     long_description=long_description,

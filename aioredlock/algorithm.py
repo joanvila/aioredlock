@@ -1,21 +1,16 @@
 import asyncio
-import uuid
+import contextlib
 import random
+import uuid
 
-from aioredlock.redis import Redis
+from aioredlock.errors import LockError
 from aioredlock.lock import Lock
+from aioredlock.redis import Redis
 
 
 class Aioredlock:
 
     LOCK_TIMEOUT = 10000  # 10 seconds
-
-    UNLOCK_SCRIPT = """
-    if redis.call("get",KEYS[1]) == ARGV[1] then
-        return redis.call("del",KEYS[1])
-    else
-        return 0
-    end"""
 
     retry_count = 3
     retry_delay_min = 0.1
@@ -38,38 +33,80 @@ class Aioredlock:
     async def lock(self, resource):
         """
         Tries to acquire de lock.
-        If the lock is correctly acquired, the valid property of the returned lock is True.
+        If the lock is correctly acquired, the valid property of
+        the returned lock is True.
+        In case of fault LockError exception will be raised
 
         :param resource: The string identifier of the resource to lock
         :return: :class:`aioredlock.Lock`
+        :raises: LockError in case of fault
         """
-        retries = 1
         lock_identifier = str(uuid.uuid4())
+        error = RuntimeError('Retry count less then one')
 
-        locked, elapsed_time = await self.redis.set_lock(resource, lock_identifier)
-        valid_lock = self._valid_lock(locked, elapsed_time)
+        try:
+            # global try/except to catch CancelledError
+            for n in range(self.retry_count):
+                if n != 0:
+                    delay = random.uniform(self.retry_delay_min,
+                                           self.retry_delay_max)
+                    await asyncio.sleep(delay)
+                try:
+                    elapsed_time = \
+                        await self.redis.set_lock(resource, lock_identifier)
+                except LockError as exc:
+                    error = exc
+                    continue
 
-        while not valid_lock and retries < self.retry_count:  # retry policy
-            await asyncio.sleep(self._retry_delay())
-            locked, elapsed_time = await self.redis.set_lock(resource, lock_identifier)
-            valid_lock = self._valid_lock(locked, elapsed_time)
-            retries += 1
+                if int(self.LOCK_TIMEOUT - elapsed_time - self.drift) <= 0:
+                    error = LockError('Lock timeout')
+                    continue
 
-        return Lock(resource, lock_identifier, valid=valid_lock)
+                error = None
+                break
+            else:
+                # break never reached
+                raise error
 
-    def _retry_delay(self):
-        return random.uniform(self.retry_delay_min, self.retry_delay_max)
+        except Exception as exc:
+            # cleanup in case of fault or cencellation will run in background
+            async def cleanup():
+                with contextlib.suppress(LockError):
+                    await self.redis.unset_lock(resource, lock_identifier)
 
-    def _valid_lock(self, locked, elapsed_time):
-        return locked and int(self.LOCK_TIMEOUT - elapsed_time - self.drift) > 0
+            asyncio.ensure_future(cleanup())
+
+            raise
+
+        return Lock(self, resource, lock_identifier, valid=True)
+
+    async def extend(self, lock):
+        """
+        Tries to extend lock lifetime by lock_timeout
+        Returns True if the lock is valid and lifetime correctly extended on
+        more then half redis instances.
+        Raises LockError if can not extend more then half of instances
+
+        :param lock: :class:`aioredlock.Lock`
+        :raises: RuntimeError if lock is not valid
+        :raises: LockError in case of fault
+        """
+
+        if not lock.valid:
+            raise RuntimeError('Lock is not valid')
+
+        await self.redis.set_lock(lock.resource, lock.id)
 
     async def unlock(self, lock):
         """
-        Release the lock and sets it's validity to False.
+        Release the lock and sets it's validity to False if
+        lock successfuly released.
 
         :param lock: :class:`aioredlock.Lock`
+        :raises: LockError in case of fault
         """
-        await self.redis.run_lua(self.UNLOCK_SCRIPT, keys=[lock.resource], args=[lock.id])
+        await self.redis.unset_lock(lock.resource, lock.id)
+        # raises LockError if can not unlock
 
         lock.valid = False
 
