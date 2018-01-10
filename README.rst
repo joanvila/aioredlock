@@ -49,6 +49,19 @@ Usage
   # raises LockError if can not release lock
   # on more then half redis instances
 
+  # Or you can use locks with context manager
+  try:
+      async with await lock_manager.lock("resource_name") as lock:
+          assert lock.valid is True
+          # Do your stuff having the lock
+          await lock.extend()  # alias for lock_manager.extend(lock)
+          # Do more stuff having the lock
+      assert lock.valid is False # lock will be released by context manager
+  except LockError:
+      print('Lock not acquired')
+      raise
+
+
   # Clear the connections with Redis
   await lock_manager.destroy()
 
