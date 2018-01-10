@@ -19,7 +19,7 @@ class Instance:
     @staticmethod
     async def _create_redis_pool(*args, **kwargs):
         """
-        Adaptor to support both aioredis-0.3.0 and aioredis-1.0.0
+        Adapter to support both aioredis-0.3.0 and aioredis-1.0.0
         For aioredis-1.0.0 and later calls:
             aioredis.create_redis_pool(*args, **kwargs)
         For aioredis-0.3.0 calls:
