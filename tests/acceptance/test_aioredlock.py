@@ -1,7 +1,12 @@
-import pytest
+import asyncio
 import os
 import uuid
-from aioredlock import Aioredlock
+
+import aioredis
+import asynctest
+import pytest
+
+from aioredlock import Aioredlock, LockError
 
 
 @pytest.fixture
@@ -12,9 +17,9 @@ def redis_one_connection():
 @pytest.fixture
 def redis_two_connections():
     return [
-            {'host': 'localhost', 'port': 6379},
-            {'host': 'localhost', 'port': 6378}
-        ]
+        {'host': 'localhost', 'port': 6379},
+        {'host': 'localhost', 'port': 6378}
+    ]
 
 
 class TestAioredlock:
@@ -23,6 +28,9 @@ class TestAioredlock:
         resource = str(uuid.uuid4())
 
         lock = await lock_manager.lock(resource)
+        assert lock.valid is True
+
+        await lock_manager.extend(lock)
         assert lock.valid is True
 
         await lock_manager.unlock(lock)
@@ -53,8 +61,8 @@ class TestAioredlock:
         lock1 = await lock_manager.lock(resource)
         assert lock1.valid is True
 
-        lock2 = await lock_manager.lock(resource)
-        assert lock2.valid is False
+        with pytest.raises(LockError):
+            await lock_manager.lock(resource)
 
         await lock_manager.unlock(lock1)
         assert lock1.valid is False
@@ -107,3 +115,54 @@ class TestAioredlock:
             redis_two_connections):
 
         await self.check_two_locks_on_same_resource(Aioredlock(redis_two_connections))
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(os.getenv('CI'), reason=reason)
+    async def test_aioredlock_lock_with_first_failed_try_two_instances(
+        self,
+        redis_two_connections
+    ):
+
+        lock_manager = Aioredlock(redis_two_connections)
+        resource = str(uuid.uuid4())
+        garbage_value = 'garbage'
+
+        first_redis = await aioredis.create_redis(
+            (redis_two_connections[0]['host'],
+             redis_two_connections[0]['port'])
+        )
+
+        # write garbage to resource key in first instance
+        await first_redis.set(resource, garbage_value)
+        is_garbage = True
+
+        # this patched sleep function will remove garbage from
+        # frist instance before second try
+        real_sleep = asyncio.sleep
+
+        async def fake_sleep(delay):
+
+            nonlocal is_garbage
+
+            # remove garbage on sleep
+            if is_garbage:
+                await first_redis.delete(resource)
+                is_garbage = False
+
+            # print('fake_sleep(%s), value %s' % (delay, value))
+            await real_sleep(delay)
+
+        # here we will try to lock while first redis instance still have
+        # resource key occupied by garbage
+        # but just before second attemt patched asyncio.sleep() function
+        # will clean up garbage key to let lock be acquired
+        with asynctest.patch("asyncio.sleep", fake_sleep):
+            lock = await lock_manager.lock(resource)
+        assert lock.valid is True
+
+        await lock_manager.unlock(lock)
+        assert lock.valid is False
+
+        await lock_manager.destroy()
+        first_redis.close()
+        await first_redis.wait_closed()
