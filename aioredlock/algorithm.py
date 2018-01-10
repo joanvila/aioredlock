@@ -10,13 +10,6 @@ class Aioredlock:
 
     LOCK_TIMEOUT = 10000  # 10 seconds
 
-    UNLOCK_SCRIPT = """
-    if redis.call("get",KEYS[1]) == ARGV[1] then
-        return redis.call("del",KEYS[1])
-    else
-        return 0
-    end"""
-
     retry_count = 3
     retry_delay_min = 0.1
     retry_delay_max = 0.3
@@ -55,7 +48,13 @@ class Aioredlock:
             valid_lock = self._valid_lock(locked, elapsed_time)
             retries += 1
 
-        return Lock(resource, lock_identifier, valid=valid_lock)
+        lock = Lock(resource, lock_identifier, valid=valid_lock)
+
+        # try to clean up in case of fault
+        if not valid_lock:
+            await self.unlock(lock)
+
+        return lock
 
     def _retry_delay(self):
         return random.uniform(self.retry_delay_min, self.retry_delay_max)
@@ -63,15 +62,37 @@ class Aioredlock:
     def _valid_lock(self, locked, elapsed_time):
         return locked and int(self.LOCK_TIMEOUT - elapsed_time - self.drift) > 0
 
+    async def extend(self, lock):
+        """
+        Tries to extend lock lifetime by lock_timeout
+        Returns True if the lock is valid and lifetime correctly extended on
+        more then half redis instances.
+        Returns False if can not extend more then half of instances
+
+        :param lock: :class:`aioredlock.Lock`
+        :return: True or False
+        :raises: RuntimeError if lock is not valid
+        """
+
+        if not lock.valid:
+            raise RuntimeError('Lock is not valid')
+
+        extended, elapsed_time = await self.redis.set_lock(
+            lock.resource, lock.id)
+
+        return extended
+
     async def unlock(self, lock):
         """
-        Release the lock and sets it's validity to False.
+        Release the lock and sets it's validity to False if
+        lock successfuly released.
 
         :param lock: :class:`aioredlock.Lock`
         """
-        await self.redis.run_lua(self.UNLOCK_SCRIPT, keys=[lock.resource], args=[lock.id])
+        unlocked, elapsed_time = (
+            await self.redis.unset_lock(lock.resource, lock.id))
 
-        lock.valid = False
+        lock.valid = lock.valid and not unlocked
 
     async def destroy(self):
         """
