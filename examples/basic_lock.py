@@ -1,11 +1,13 @@
 import asyncio
+import logging
+
 from aioredlock import Aioredlock, LockError
 
 
 async def basic_lock():
     lock_manager = Aioredlock([{
         'host': 'localhost',
-        'port': 6379,
+        'port': 6374,
         'db': 0,
         'password': None
     }])
@@ -27,5 +29,6 @@ async def basic_lock():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(basic_lock())

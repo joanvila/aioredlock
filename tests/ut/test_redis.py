@@ -17,8 +17,11 @@ def callculate_sha1(text):
     return digest
 
 
-EVAL_ERROR = aioredis.errors.ReplyError('ERROR')
 EVAL_OK = b'OK'
+EVAL_ERROR = aioredis.errors.ReplyError('ERROR')
+CANCELLED = asyncio.CancelledError('CANCELLED')
+CONNECT_ERROR = OSError('ERROR')
+RANDOM_ERROR = Exception('FAULT')
 
 
 class FakePool:
@@ -254,8 +257,10 @@ class TestRedis:
     @pytest.mark.parametrize("redis_result, success", [
         ([EVAL_OK, EVAL_OK, EVAL_OK], True),
         ([EVAL_OK, EVAL_OK, EVAL_ERROR], True),
-        ([EVAL_OK, EVAL_ERROR, EVAL_ERROR], False),
-        ([EVAL_ERROR, EVAL_ERROR, EVAL_ERROR], False),
+        ([EVAL_OK, EVAL_ERROR, CONNECT_ERROR], False),
+        ([EVAL_ERROR, EVAL_ERROR, CONNECT_ERROR], False),
+        ([EVAL_ERROR, CONNECT_ERROR, RANDOM_ERROR], False),
+        ([CANCELLED, CANCELLED, CANCELLED], False),
     ])
     @parametrize_methods
     async def test_three_instances_combination(

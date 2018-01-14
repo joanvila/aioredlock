@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import logging
 import random
 import uuid
 
@@ -30,6 +31,10 @@ class Aioredlock:
         # See https://redis.io/topics/distlock#is-the-algorithm-asynchronous for more info
         self.drift = int(self.LOCK_TIMEOUT * 0.01) + 2
 
+    @property
+    def log(self):
+        return logging.getLogger(__name__)
+
     async def lock(self, resource):
         """
         Tries to acquire de lock.
@@ -47,6 +52,8 @@ class Aioredlock:
         try:
             # global try/except to catch CancelledError
             for n in range(self.retry_count):
+                self.log.debug('Acquireing lock "%s" try %d/%d',
+                               resource, n+1, self.retry_count)
                 if n != 0:
                     delay = random.uniform(self.retry_delay_min,
                                            self.retry_delay_max)
@@ -60,6 +67,8 @@ class Aioredlock:
 
                 if int(self.LOCK_TIMEOUT - elapsed_time - self.drift) <= 0:
                     error = LockError('Lock timeout')
+                    self.log.debug('Timeout in acquireing the lock "%s"',
+                                   resource)
                     continue
 
                 error = None
@@ -71,6 +80,7 @@ class Aioredlock:
         except Exception as exc:
             # cleanup in case of fault or cencellation will run in background
             async def cleanup():
+                self.log.debug('Cleaning up lock "%s"', resource)
                 with contextlib.suppress(LockError):
                     await self.redis.unset_lock(resource, lock_identifier)
 
@@ -92,6 +102,8 @@ class Aioredlock:
         :raises: LockError in case of fault
         """
 
+        self.log.debug('Extending lock "%s"', lock.resource)
+
         if not lock.valid:
             raise RuntimeError('Lock is not valid')
 
@@ -105,6 +117,9 @@ class Aioredlock:
         :param lock: :class:`aioredlock.Lock`
         :raises: LockError in case of fault
         """
+
+        self.log.debug('Releasing lock "%s"', lock.resource)
+
         await self.redis.unset_lock(lock.resource, lock.id)
         # raises LockError if can not unlock
 
@@ -114,4 +129,5 @@ class Aioredlock:
         """
         Clear all the redis connections
         """
+        self.log.debug('Destroing %s', repr(self))
         await self.redis.clear_connections()

@@ -67,6 +67,8 @@ class TestAioredlock:
         await lock_manager.unlock(lock1)
         assert lock1.valid is False
 
+        await asyncio.sleep(0.2)  # wait for lock cleanup
+
         await lock_manager.destroy()
 
     @pytest.mark.asyncio
