@@ -23,7 +23,7 @@ def lock_manager_redis_patched():
     with asynctest.patch("aioredlock.algorithm.Redis", CoroutineMock) as mock_redis:
         with patch("asyncio.sleep", dummy_sleep):
             mock_redis.set_lock = CoroutineMock(return_value=(True, 5))
-            mock_redis.run_lua = CoroutineMock()
+            mock_redis.unset_lock = CoroutineMock(return_value=(True, 5))
             mock_redis.clear_connections = CoroutineMock()
 
             lock_manager = Aioredlock(lock_timeout=1000, drift=102)
@@ -103,6 +103,7 @@ class TestAioredlock:
             call('resource', ANY)
         ]
         redis.set_lock.assert_has_calls(calls)
+        redis.unset_lock.assert_not_called()
         assert lock.resource == 'resource'
         assert lock.id == ANY
         assert lock.valid is True
@@ -124,6 +125,7 @@ class TestAioredlock:
             call('resource', ANY)
         ]
         redis.set_lock.assert_has_calls(calls)
+        redis.unset_lock.assert_called_once_with('resource', ANY)
         assert lock.resource == 'resource'
         assert lock.id == ANY
         assert lock.valid is False
@@ -143,6 +145,7 @@ class TestAioredlock:
             call('resource', ANY)
         ]
         redis.set_lock.assert_has_calls(calls)
+        redis.unset_lock.assert_not_called()
         assert lock.resource == 'resource'
         assert lock.id == ANY
         assert lock.valid is True
@@ -164,6 +167,7 @@ class TestAioredlock:
             call('resource', ANY)
         ]
         redis.set_lock.assert_has_calls(calls)
+        redis.unset_lock.assert_called_once_with('resource', ANY)
         assert lock.resource == 'resource'
         assert lock.id == ANY
         assert lock.valid is False
@@ -185,6 +189,7 @@ class TestAioredlock:
             call('resource', ANY)
         ]
         redis.set_lock.assert_has_calls(calls)
+        redis.unset_lock.assert_called_once_with('resource', ANY)
         assert lock.resource == 'resource'
         assert lock.id == ANY
         assert lock.valid is False
@@ -195,10 +200,9 @@ class TestAioredlock:
 
         await lock_manager.unlock(locked_lock)
 
-        redis.run_lua.assert_called_once_with(
-            lock_manager.UNLOCK_SCRIPT,
-            keys=[locked_lock.resource],
-            args=[locked_lock.id]
+        redis.unset_lock.assert_called_once_with(
+            locked_lock.resource,
+            locked_lock.id
         )
         assert locked_lock.valid is False
 
