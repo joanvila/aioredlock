@@ -1,8 +1,9 @@
-flake8==3.2.1
-pytest==3.0.6
-pytest-asyncio==0.5.0
-pytest-mock==1.5.0
-pytest-cov==2.4.0
-codecov==2.0.5
-asynctest==0.10.0
-ipdb==0.10.2
+flake8==3.5.0
+pytest==3.3.1
+pytest-asyncio==0.8.0
+pytest-cov==2.5.1
+pytest-mock==1.6.3
+pytest-runner==3.0
+codecov==2.0.11
+asynctest==0.11.1
+ipdb==0.10.3

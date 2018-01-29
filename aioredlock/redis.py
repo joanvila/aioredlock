@@ -50,9 +50,9 @@ class Instance:
             aioredis.create_pool(*args, **kwargs)
         """
 
-        if StrictVersion(aioredis.__version__) >= StrictVersion('1.0.0'):
+        if StrictVersion(aioredis.__version__) >= StrictVersion('1.0.0'):  # pragma no cover
             return await aioredis.create_redis_pool(*args, **kwargs)
-        else:
+        else:  # pragma no cover
             return await aioredis.create_pool(*args, **kwargs)
 
     async def _register_scripts(self, redis):
