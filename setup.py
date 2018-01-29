@@ -10,7 +10,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 setup(
     name='aioredlock',
 
-    version='0.1.1',
+    version='0.2.0',
 
     description='Asyncio implemetation of Redis distributed locks',
     long_description=long_description,
@@ -41,5 +41,7 @@ setup(
 
     packages=find_packages(),
 
-    install_requires=['aioredis']
+    install_requires=['aioredis'],
+    setup_requires=['pytest-runner'],
+    tests_require=['pytest', 'pytest-asyncio', 'pytest-mock', 'pytest-cov']
 )

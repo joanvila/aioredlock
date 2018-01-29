@@ -1,16 +1,35 @@
 import asyncio
-import aioredis
 import time
+from distutils.version import StrictVersion
+
+import aioredis
 
 
 class Instance:
 
-    def __init__(self, host, port):
+    def __init__(self, host='localhost', port=6379, db=0, password=None):
         self.host = host
         self.port = port
+        self.db = db
+        self.password = password
 
         self._pool = None
         self._lock = asyncio.Lock()
+
+    @staticmethod
+    async def _create_redis_pool(*args, **kwargs):
+        """
+        Adapter to support both aioredis-0.3.0 and aioredis-1.0.0
+        For aioredis-1.0.0 and later calls:
+            aioredis.create_redis_pool(*args, **kwargs)
+        For aioredis-0.3.0 calls:
+            aioredis.create_pool(*args, **kwargs)
+        """
+
+        if StrictVersion(aioredis.__version__) >= StrictVersion('1.0.0'):
+            return await aioredis.create_redis_pool(*args, **kwargs)
+        else:
+            return await aioredis.create_pool(*args, **kwargs)
 
     async def connect(self):
         """
@@ -19,8 +38,10 @@ class Instance:
         if self._pool is None:
             async with self._lock:
                 if self._pool is None:
-                    self._pool = await aioredis.create_pool(
-                        (self.host, self.port), minsize=1, maxsize=100)
+                    self._pool = await self._create_redis_pool(
+                        (self.host, self.port),
+                        db=self.db, password=self.password,
+                        minsize=1, maxsize=100)
 
         return await self._pool
 
@@ -32,7 +53,7 @@ class Redis:
         self.instances = []
         for connection in redis_connections:
             self.instances.append(
-                Instance(connection['host'], connection['port']))
+                Instance(**connection))
 
         self.lock_timeout = lock_timeout
 
@@ -55,7 +76,8 @@ class Redis:
                 successful_sets += 1
 
         elapsed_time = int(time.time() * 1000) - start_time
-        locked = True if successful_sets >= int(len(self.instances)/2) + 1 else False
+        locked = True if successful_sets >= int(
+            len(self.instances) / 2) + 1 else False
 
         return (locked, elapsed_time)
 
