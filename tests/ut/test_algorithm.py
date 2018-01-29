@@ -6,6 +6,7 @@ from unittest.mock import ANY, call
 
 from aioredlock import Aioredlock
 from aioredlock import Lock
+from aioredlock.algorithm import validate_lock_timeout
 
 
 async def dummy_sleep(seconds):
@@ -25,12 +26,15 @@ def lock_manager_redis_patched():
             mock_redis.run_lua = CoroutineMock()
             mock_redis.clear_connections = CoroutineMock()
 
-            lock_manager = Aioredlock()
-            lock_manager.LOCK_TIMEOUT = 1000
-            lock_manager.retry_count = 3
-            lock_manager.drift = 102
+            lock_manager = Aioredlock(lock_timeout=1000, drift=102)
 
             yield lock_manager, mock_redis
+
+
+def test_validate_lock_timeout():
+    with pytest.raises(ValueError) as exc_info:
+        validate_lock_timeout(None, None, -1)
+    assert str(exc_info.value) == "Lock timeout must be greater than 0 ms."
 
 
 class TestAioredlock:
@@ -42,7 +46,7 @@ class TestAioredlock:
 
             mock_redis.assert_called_once_with(
                 [{'host': 'localhost', 'port': 6379}],
-                lock_manager.LOCK_TIMEOUT
+                lock_manager.lock_timeout
             )
             assert lock_manager.redis
             assert lock_manager.drift == 102
@@ -54,10 +58,21 @@ class TestAioredlock:
 
             mock_redis.assert_called_once_with(
                 [{'host': '::1', 'port': 1}],
-                lock_manager.LOCK_TIMEOUT
+                lock_manager.lock_timeout
             )
             assert lock_manager.redis
             assert lock_manager.drift == 102
+
+    def test_initialization_with_invalid_timeout(self):
+        lock_manager = None
+        # Non-positive integers
+        with pytest.raises(ValueError):
+            lock_manager = Aioredlock(lock_timeout=-1)
+        assert lock_manager is None
+        # Invalid literal during int() conversion
+        with pytest.raises(ValueError):
+            lock_manager = Aioredlock(lock_timeout="a")
+        assert lock_manager is None
 
     @pytest.mark.asyncio
     async def test_lock(self, lock_manager_redis_patched, locked_lock):
