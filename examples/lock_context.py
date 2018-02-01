@@ -1,4 +1,6 @@
 import asyncio
+import logging
+
 from aioredlock import Aioredlock, LockError
 
 
@@ -26,5 +28,6 @@ async def lock_context():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(lock_context())
