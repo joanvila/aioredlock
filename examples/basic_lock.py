@@ -7,7 +7,7 @@ from aioredlock import Aioredlock, LockError
 async def basic_lock():
     lock_manager = Aioredlock([{
         'host': 'localhost',
-        'port': 6374,
+        'port': 6379,
         'db': 0,
         'password': None
     }])
