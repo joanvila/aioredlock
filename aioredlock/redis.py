@@ -280,8 +280,10 @@ class Redis:
 
         self.log.debug('Clearing connection')
 
+        tasks = []
         for i in self.instances:
-            i._pool.close()
-        await asyncio.gather(*[
-            i._pool.wait_closed() for i in self.instances
-        ])
+            if i._pool is not None:
+                i._pool.close()
+                tasks.append(i._pool.wait_closed())
+        if tasks:
+            await asyncio.gather(*tasks)
