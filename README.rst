@@ -26,11 +26,16 @@ Usage
 
   # Define a list of connections to your Redis instances:
   redis_instances = [
-    {'host': 'localhost', 'port': 6379}
+    ('localhost', 6379),
+    {'host': 'localhost', 'port': 6379, 'db': 1},
+    'redis://localhost:6379/2',
   ]
 
   # Create a lock manager:
   lock_manager = Aioredlock(redis_instances)
+
+  # Check is lock acquired by another redlock instance
+  assert not await lock_manager.is_locked("resource_name")
 
   # Try to acquire the lock:
   try:
@@ -39,7 +44,11 @@ Usage
       print('Lock not acquired')
       raise
 
-  # extend lock lifetime
+  # Now lock is acquired
+  assert lock.valid
+  assert await lock_manager.is_locked("resource_name")
+
+  # extend lock's lifetime
   await lock_manager.extend(lock)
   # raises LockError if can not extend lock lifetime
   # on more then half redis instances
@@ -48,6 +57,10 @@ Usage
   await lock_manager.unlock(lock)
   # raises LockError if can not release lock
   # on more then half redis instances
+
+  # After release lock become invalid
+  assert not lock.valid
+  assert not await lock_manager.is_locked("resource_name")
 
   # Or you can use locks with context manager
   try:
@@ -61,7 +74,6 @@ Usage
       print('Lock not acquired')
       raise
 
-
   # Clear the connections with Redis
   await lock_manager.destroy()
 
@@ -71,7 +83,7 @@ How it works
 
 The Aioredlock constructor accepts the following optional parameters:
 
-- ``redis_connections``: A list of connections (dictionary of host and port) where the Redis instances are running. The default value is ``[{'host': 'localhost', 'port': 6379}]``.
+- ``redis_connections``: A list of connections (dictionary of host and port and kwargs for `aioredis.create_redis_pool()`, or tuple `(host, port)`, or sting Redis URI) where the Redis instances are running.  The default value is ``[{'host': 'localhost', 'port': 6379}]``.
 - ``lock_timeout``: An integer (in milliseconds) representing lock validity period. The default value is ``10000`` ms.
 - ``drift``: An integer for clock drift compensation. The default value is calculated by ``int(lock_timeout * 0.01) + 2`` ms.
 - ``retry_count``: An integer representing number of maximum allowed retries to acquire the lock. The default value is ``3`` times.
@@ -81,7 +93,9 @@ In order to acquire the lock, the ``lock`` function should be called. If the loc
 
 From that moment, the lock is valid until the ``unlock`` function is called or when the ``lock_timeout`` is reached.
 
-To extend lock lifetime for more 10 seconds call ``extend`` function.
+Call ``extend`` function to extend lock's lifetime for more ``lock_timeout`` interval.
+
+Use ``is_locked`` to check if resource locked by another redlock instance.
 
 In order to clear all the connections with Redis, the lock_manager ``destroy`` method can be called.
 
