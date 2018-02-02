@@ -1,10 +1,14 @@
 import asyncio
-import attr
-import uuid
+import contextlib
+import logging
 import random
+import uuid
 
-from aioredlock.redis import Redis
+import attr
+
+from aioredlock.errors import LockError
 from aioredlock.lock import Lock
+from aioredlock.redis import Redis
 
 
 def validate_lock_timeout(instance, attribute, value):
@@ -27,56 +31,127 @@ class Aioredlock:
     retry_count = attr.ib(default=3, convert=int)
     retry_delay_min = attr.ib(default=0.1, convert=float)
     retry_delay_max = attr.ib(default=0.3, convert=float)
-    UNLOCK_SCRIPT = """
-    if redis.call("get",KEYS[1]) == ARGV[1] then
-        return redis.call("del",KEYS[1])
-    else
-        return 0
-    end"""
 
     def __attrs_post_init__(self):
         self.redis = Redis(self.redis_connections, self.lock_timeout)
 
+    @property
+    def log(self):
+        return logging.getLogger(__name__)
+
     async def lock(self, resource):
         """
         Tries to acquire de lock.
-        If the lock is correctly acquired, the valid property of the returned lock is True.
+        If the lock is correctly acquired, the valid property of
+        the returned lock is True.
+        In case of fault LockError exception will be raised
 
         :param resource: The string identifier of the resource to lock
         :return: :class:`aioredlock.Lock`
+        :raises: LockError in case of fault
         """
-        retries = 1
         lock_identifier = str(uuid.uuid4())
+        error = RuntimeError('Retry count less then one')
 
-        locked, elapsed_time = await self.redis.set_lock(resource, lock_identifier)
-        valid_lock = self._valid_lock(locked, elapsed_time)
+        try:
+            # global try/except to catch CancelledError
+            for n in range(self.retry_count):
+                self.log.debug('Acquireing lock "%s" try %d/%d',
+                               resource, n+1, self.retry_count)
+                if n != 0:
+                    delay = random.uniform(self.retry_delay_min,
+                                           self.retry_delay_max)
+                    await asyncio.sleep(delay)
+                try:
+                    elapsed_time = \
+                        await self.redis.set_lock(resource, lock_identifier)
+                except LockError as exc:
+                    error = exc
+                    continue
 
-        while not valid_lock and retries < self.retry_count:  # retry policy
-            await asyncio.sleep(self._retry_delay())
-            locked, elapsed_time = await self.redis.set_lock(resource, lock_identifier)
-            valid_lock = self._valid_lock(locked, elapsed_time)
-            retries += 1
+                if int(self.lock_timeout - elapsed_time - self.drift) <= 0:
+                    error = LockError('Lock timeout')
+                    self.log.debug('Timeout in acquireing the lock "%s"',
+                                   resource)
+                    continue
 
-        return Lock(resource, lock_identifier, valid=valid_lock)
+                error = None
+                break
+            else:
+                # break never reached
+                raise error
 
-    def _retry_delay(self):
-        return random.uniform(self.retry_delay_min, self.retry_delay_max)
+        except Exception as exc:
+            # cleanup in case of fault or cencellation will run in background
+            async def cleanup():
+                self.log.debug('Cleaning up lock "%s"', resource)
+                with contextlib.suppress(LockError):
+                    await self.redis.unset_lock(resource, lock_identifier)
 
-    def _valid_lock(self, locked, elapsed_time):
-        return locked and int(self.lock_timeout - elapsed_time - self.drift) > 0
+            asyncio.ensure_future(cleanup())
+
+            raise
+
+        return Lock(self, resource, lock_identifier, valid=True)
+
+    async def extend(self, lock):
+        """
+        Tries to extend lock lifetime by lock_timeout
+        Returns True if the lock is valid and lifetime correctly extended on
+        more then half redis instances.
+        Raises LockError if can not extend more then half of instances
+
+        :param lock: :class:`aioredlock.Lock`
+        :raises: RuntimeError if lock is not valid
+        :raises: LockError in case of fault
+        """
+
+        self.log.debug('Extending lock "%s"', lock.resource)
+
+        if not lock.valid:
+            raise RuntimeError('Lock is not valid')
+
+        await self.redis.set_lock(lock.resource, lock.id)
 
     async def unlock(self, lock):
         """
-        Release the lock and sets it's validity to False.
+        Release the lock and sets it's validity to False if
+        lock successfuly released.
 
         :param lock: :class:`aioredlock.Lock`
+        :raises: LockError in case of fault
         """
-        await self.redis.run_lua(self.UNLOCK_SCRIPT, keys=[lock.resource], args=[lock.id])
+
+        self.log.debug('Releasing lock "%s"', lock.resource)
+
+        await self.redis.unset_lock(lock.resource, lock.id)
+        # raises LockError if can not unlock
 
         lock.valid = False
+
+    async def is_locked(self, resource_or_lock):
+        """
+        Checks if the resource or the lock is locked by any client.
+
+        :param resource_or_lock: The resource string name or aioredlock.Lock instance
+        :returns: True if locked else False
+        """
+
+        if isinstance(resource_or_lock, Lock):
+            resource = resource_or_lock.resource
+        elif isinstance(resource_or_lock, str):
+            resource = resource_or_lock
+        else:
+            raise TypeError(
+                'Argument should be ether aioredlock.Lock instance or string, '
+                '%s is given.', type(resource_or_lock)
+            )
+
+        return await self.redis.is_locked(resource)
 
     async def destroy(self):
         """
         Clear all the redis connections
         """
+        self.log.debug('Destroing %s', repr(self))
         await self.redis.clear_connections()

@@ -22,7 +22,7 @@ Usage
 -----
 .. code-block:: python
 
-  from aioredlock import Aioredlock
+  from aioredlock import Aioredlock, LockError
 
   # Define a list of connections to your Redis instances:
   redis_instances = [
@@ -33,10 +33,34 @@ Usage
   lock_manager = Aioredlock(redis_instances)
 
   # Try to acquire the lock:
-  lock = await lock_manager.lock("resource_name")
+  try:
+      lock = await lock_manager.lock("resource_name")
+  except LockError:
+      print('Lock not acquired')
+      raise
+
+  # extend lock lifetime
+  await lock_manager.extend(lock)
+  # raises LockError if can not extend lock lifetime
+  # on more then half redis instances
 
   # Release the lock:
   await lock_manager.unlock(lock)
+  # raises LockError if can not release lock
+  # on more then half redis instances
+
+  # Or you can use locks with context manager
+  try:
+      async with await lock_manager.lock("resource_name") as lock:
+          assert lock.valid is True
+          # Do your stuff having the lock
+          await lock.extend()  # alias for lock_manager.extend(lock)
+          # Do more stuff having the lock
+      assert lock.valid is False # lock will be released by context manager
+  except LockError:
+      print('Lock not acquired')
+      raise
+
 
   # Clear the connections with Redis
   await lock_manager.destroy()
@@ -53,19 +77,18 @@ The Aioredlock constructor accepts the following optional parameters:
 - ``retry_count``: An integer representing number of maximum allowed retries to acquire the lock. The default value is ``3`` times.
 - ``retry_delay_min`` and ``retry_delay_max``: Float values representing waiting time (in seconds) before the next retry attempt. The default values are ``0.1`` and ``0.3``, respectively.
 
-In order to acquire the lock, the ``lock`` function should be called. If the lock operation is successful, ``lock.valid`` will be true.
+In order to acquire the lock, the ``lock`` function should be called. If the lock operation is successful, ``lock.valid`` will be true, if lock is not acquired then LockError will be raised.
 
 From that moment, the lock is valid until the ``unlock`` function is called or when the ``lock_timeout`` is reached.
+
+To extend lock lifetime for more 10 seconds call ``extend`` function.
 
 In order to clear all the connections with Redis, the lock_manager ``destroy`` method can be called.
 
 To-do
 -----
 
-* Raise an exception if the lock cannot be obtained so no need to check for `lock.valid`
-* Handle/encapsulate aioredis exceptions when performing operations
 * Expire the lock valid attribute according to the lock validity in a safe way if possible
-* Lock extension
 
 .. _redlock: https://redis.io/topics/distlock
 .. _Redis: https://redis.io
