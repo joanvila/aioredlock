@@ -12,9 +12,13 @@ async def lock_context():
         'redis://localhost:6379/3',
     ])
 
+    if await lock_manager.is_locked("resource"):
+        print.error('The resource is already acquired')
+
     try:
         async with await lock_manager.lock("resource") as lock:
             assert lock.valid is True
+            assert await lock_manager.is_locked("resource") is True
             # Do your stuff having the lock
             await lock.extend()
             # Do more stuff having the lock
@@ -23,6 +27,9 @@ async def lock_context():
         print('"resource" key might be not empty. Please call '
               '"del resource" in redis-cli')
         raise
+
+    assert lock.valid is False
+    assert await lock_manager.is_locked("resource") is False
 
     await lock_manager.destroy()
 

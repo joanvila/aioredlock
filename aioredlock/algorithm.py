@@ -125,6 +125,26 @@ class Aioredlock:
 
         lock.valid = False
 
+    async def is_locked(self, resource_or_lock):
+        """
+        Checks if the resource or the lock is locked by any client.
+
+        :param resource_or_lock: The resource string name or aioredlock.Lock instance
+        :returns: True if locked else False
+        """
+
+        if isinstance(resource_or_lock, Lock):
+            resource = resource_or_lock.resource
+        elif isinstance(resource_or_lock, str):
+            resource = resource_or_lock
+        else:
+            raise TypeError(
+                'Argument should be ether aioredlock.Lock instance or string, '
+                '%s is given.', type(resource_or_lock)
+            )
+
+        return await self.redis.is_locked(resource)
+
     async def destroy(self):
         """
         Clear all the redis connections

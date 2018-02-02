@@ -12,18 +12,22 @@ async def basic_lock():
         'password': None
     }])
 
+    if await lock_manager.is_locked("resource"):
+        print('The resource is already acquired')
+
     try:
         lock = await lock_manager.lock("resource")
     except LockError:
-        print('"resource" key might be not empty. Please call '
-              '"del resource" in redis-cli')
+        print('Something is wrong')
         raise
     assert lock.valid is True
+    assert await lock_manager.is_locked("resource") is True
 
     # Do your stuff having the lock
 
     await lock_manager.unlock(lock)
     assert lock.valid is False
+    assert await lock_manager.is_locked("resource") is False
 
     await lock_manager.destroy()
 

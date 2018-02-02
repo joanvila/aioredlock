@@ -33,6 +33,7 @@ class FakePool:
         self.script_cache = {}
 
         self.evalsha = CoroutineMock(return_value=True)
+        self.get = CoroutineMock(return_value=False)
         self.script_load = CoroutineMock(side_effect=self._fake_script_load)
 
     def __await__(self):
@@ -161,6 +162,23 @@ class TestInstance:
             args=['lock_id']
         )
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("get_return_value,locked", [
+        (b'lock_identifier', True),
+        (None, False),
+    ])
+    async def test_is_locked(self, fake_instance, get_return_value, locked):
+        instance = fake_instance
+        await instance.connect()
+        pool = instance._pool
+
+        pool.get.return_value = get_return_value
+
+        res = await instance.is_locked('resource')
+
+        assert res == locked
+        pool.get.assert_called_once_with('resource')
+
 
 @pytest.fixture
 def redis_two_connections():
@@ -238,6 +256,22 @@ class TestRedis:
 
         calls = [call(script_sha1, **call_args)] * 2
         pool.evalsha.assert_has_calls(calls)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("get_return_value,locked", [
+        (b'lock_identifier', True),
+        (None, False),
+    ])
+    async def test_is_locked(self, mock_redis_two_instances, get_return_value, locked):
+        redis, pool = mock_redis_two_instances
+
+        pool.get.return_value = get_return_value
+
+        res = await redis.is_locked('resource')
+
+        calls = [call('resource')] * 2
+        pool.get.assert_has_calls(calls)
+        assert res == locked
 
     @pytest.mark.asyncio
     @parametrize_methods

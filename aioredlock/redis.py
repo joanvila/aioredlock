@@ -196,6 +196,21 @@ class Instance:
         else:
             self.log.debug('Lock "%s" is unset on %s', resource, repr(self))
 
+    async def is_locked(self, resource):
+        """
+        Checks if the resource is locked by any client.
+
+        :param resource: The resource string name to lock
+        :returns: True if locked else False
+        """
+
+        with await self.connect() as redis:
+            lock_identifier = await redis.get(resource)
+        if lock_identifier:
+            return True
+        else:
+            return False
+
 
 class Redis:
 
@@ -275,6 +290,25 @@ class Redis:
             raise LockError('Can not release lock')
 
         return elapsed_time
+
+    async def is_locked(self, resource):
+        """
+        Checks if the resource is locked by any client.
+
+        :param resource: The resource string name to lock
+        :returns: True if locked else False
+        """
+
+        successes = await asyncio.gather(*[
+            i.is_locked(resource) for
+            i in self.instances
+        ], return_exceptions=True)
+        successful_sets = sum(s is True for s in successes)
+
+        locked = True if successful_sets >= int(
+            len(self.instances) / 2) + 1 else False
+
+        return locked
 
     async def clear_connections(self):
 

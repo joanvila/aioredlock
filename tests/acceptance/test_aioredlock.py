@@ -27,14 +27,19 @@ class TestAioredlock:
     async def check_simple_lock(self, lock_manager):
         resource = str(uuid.uuid4())
 
+        assert await lock_manager.is_locked(resource) is False
+
         lock = await lock_manager.lock(resource)
         assert lock.valid is True
+        assert await lock_manager.is_locked(resource) is True
 
         await lock_manager.extend(lock)
         assert lock.valid is True
+        assert await lock_manager.is_locked(resource) is True
 
         await lock_manager.unlock(lock)
         assert lock.valid is False
+        assert await lock_manager.is_locked(resource) is False
 
         await lock_manager.destroy()
 
@@ -42,30 +47,44 @@ class TestAioredlock:
         resource1 = str(uuid.uuid4())
         resource2 = str(uuid.uuid4())
 
+        assert await lock_manager.is_locked(resource1) is False
+        assert await lock_manager.is_locked(resource2) is False
+
         lock1 = await lock_manager.lock(resource1)
         assert lock1.valid is True
+        assert await lock_manager.is_locked(resource1) is True
+        assert await lock_manager.is_locked(resource2) is False
 
         lock2 = await lock_manager.lock(resource2)
         assert lock2.valid is True
+        assert await lock_manager.is_locked(resource1) is True
+        assert await lock_manager.is_locked(resource2) is True
 
         await lock_manager.unlock(lock1)
         assert lock1.valid is False
+        assert await lock_manager.is_locked(resource1) is False
         await lock_manager.unlock(lock2)
         assert lock2.valid is False
+        assert await lock_manager.is_locked(resource2) is False
 
         await lock_manager.destroy()
 
     async def check_two_locks_on_same_resource(self, lock_manager):
         resource = str(uuid.uuid4())
 
+        assert await lock_manager.is_locked(resource) is False
+
         lock1 = await lock_manager.lock(resource)
         assert lock1.valid is True
+        assert await lock_manager.is_locked(resource) is True
 
         with pytest.raises(LockError):
             await lock_manager.lock(resource)
+        assert await lock_manager.is_locked(resource) is True
 
         await lock_manager.unlock(lock1)
         assert lock1.valid is False
+        assert await lock_manager.is_locked(resource) is False
 
         await asyncio.sleep(0.2)  # wait for lock cleanup
 
