@@ -1,14 +1,13 @@
+import attr
 
+
+@attr.s
 class Lock:
 
-    def __init__(self, lock_manager, resource, lock_identifier, valid=False):
-        """
-        Initialize a lock with its fields.
-        """
-        self.lock_manager = lock_manager
-        self.resource = resource
-        self.id = lock_identifier
-        self.valid = valid
+    lock_manager = attr.ib()
+    resource = attr.ib()
+    id = attr.ib()
+    valid = attr.ib(default=False)
 
     async def __aenter__(self):
         return self
