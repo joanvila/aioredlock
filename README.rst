@@ -84,8 +84,8 @@ How it works
 The Aioredlock constructor accepts the following optional parameters:
 
 - ``redis_connections``: A list of connections (dictionary of host and port and kwargs for ``aioredis.create_redis_pool()``, or tuple ``(host, port)``, or sting Redis URI) where the Redis instances are running.  The default value is ``[{'host': 'localhost', 'port': 6379}]``.
-- ``lock_timeout``: An integer (in milliseconds) representing lock validity period. The default value is ``10000`` ms.
-- ``drift``: An integer for clock drift compensation. The default value is calculated by ``int(lock_timeout * 0.01) + 2`` ms.
+- ``lock_timeout``: An float (in seconds) representing lock validity period. The default value is ``10.0`` seconds.
+- ``drift``: An float for clock drift compensation. The default value is calculated by ``lock_timeout * 0.01 + 0.002`` seconds.
 - ``retry_count``: An integer representing number of maximum allowed retries to acquire the lock. The default value is ``3`` times.
 - ``retry_delay_min`` and ``retry_delay_max``: Float values representing waiting time (in seconds) before the next retry attempt. The default values are ``0.1`` and ``0.3``, respectively.
 

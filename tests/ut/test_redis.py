@@ -140,7 +140,7 @@ class TestInstance:
         await instance.connect()
         pool = instance._pool
 
-        await instance.set_lock('resource', 'lock_id', 10000)
+        await instance.set_lock('resource', 'lock_id', 10.0)
 
         pool.evalsha.assert_called_once_with(
             instance.set_lock_script_sha1,
@@ -225,7 +225,7 @@ class TestRedis:
         with patch("aioredlock.redis.Instance.__init__") as mock_instance:
             mock_instance.return_value = None
 
-            redis = Redis(redis_two_connections, 10)
+            redis = Redis(redis_two_connections, 0.01)
 
             calls = [
                 call({'host': 'localhost', 'port': 6379}),
@@ -233,10 +233,10 @@ class TestRedis:
             ]
             mock_instance.assert_has_calls(calls)
             assert len(redis.instances) == 2
-            assert redis.lock_timeout == 10
+            assert redis.lock_timeout == 0.01
 
     parametrize_methods = pytest.mark.parametrize("method_name, call_args", [
-        ('set_lock', {'keys': ['resource'], 'args':['lock_id', 10]}),
+        ('set_lock', {'keys': ['resource'], 'args':['lock_id', 10000]}),
         ('unset_lock', {'keys': ['resource'], 'args':['lock_id']}),
     ])
 

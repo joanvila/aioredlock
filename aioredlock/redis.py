@@ -132,15 +132,18 @@ class Instance:
         Lock this instance and set lock expiration time to lock_timeout
         :param resource: redis key to set
         :param lock_identifier: uniquie id of lock
-        :param lock_timeout: timeout for lock in milliseconds
+        :param lock_timeout: timeout for lock in seconds
         :raises: LockError if lock is not acquired
         """
+
+        lock_timeout_ms = int(lock_timeout * 1000)
+
         try:
             with await self.connect() as redis:
                 await redis.evalsha(
                     self.set_lock_script_sha1,
                     keys=[resource],
-                    args=[lock_identifier, lock_timeout]
+                    args=[lock_identifier, lock_timeout_ms]
                 )
         except aioredis.errors.ReplyError as exc:  # script fault
             self.log.debug('Can not set lock "%s" on %s',
@@ -230,12 +233,12 @@ class Redis:
 
         :param resource: The resource string name to lock
         :param lock_identifier: The id of the lock. A unique string
-        :return int: The elapsed time that took to lock the instances
-            in milliseconds
+        :return float: The elapsed time that took to lock the instances
+            in seconds
         :raises: LockError if the lock has not been set to at least (N/2 + 1)
             instances
         """
-        start_time = int(time.time() * 1000)
+        start_time = time.time()
         lock_timeout = self.lock_timeout
 
         successes = await asyncio.gather(*[
@@ -244,13 +247,11 @@ class Redis:
         ], return_exceptions=True)
         successful_sets = sum(s is None for s in successes)
 
-        elapsed_time = int(time.time() * 1000) - start_time
-        locked = True if successful_sets >= int(
-            len(self.instances) / 2) + 1 else False
+        elapsed_time = time.time() - start_time
+        locked = True if successful_sets >= int(len(self.instances) / 2) + 1 else False
 
         self.log.debug('Lock "%s" is set on %d/%d instances in %s seconds',
-                       resource, successful_sets, len(self.instances),
-                       elapsed_time / 1000)
+                       resource, successful_sets, len(self.instances), elapsed_time)
 
         if not locked:
             raise LockError('Can not acquire the lock "%s"' % resource)
@@ -263,12 +264,11 @@ class Redis:
 
         :param resource: The resource string name to lock
         :param lock_identifier: The id of the lock. A unique string
-        :return int: The elapsed time that took to lock the instances
-            in milliseconds
+        :return float: The elapsed time that took to lock the instances in iseconds
         :raises: LockError if the lock has not matching identifier in more then
             (N/2 - 1) instances
         """
-        start_time = int(time.time() * 1000)
+        start_time = time.time()
 
         successes = await asyncio.gather(*[
             i.unset_lock(resource, lock_identifier) for
@@ -276,13 +276,11 @@ class Redis:
         ], return_exceptions=True)
         successful_remvoes = sum(s is None for s in successes)
 
-        elapsed_time = int(time.time() * 1000) - start_time
-        unlocked = True if successful_remvoes >= int(
-            len(self.instances) / 2) + 1 else False
+        elapsed_time = time.time() - start_time
+        unlocked = True if successful_remvoes >= int(len(self.instances) / 2) + 1 else False
 
         self.log.debug('Lock "%s" is unset on %d/%d instances in %s seconds',
-                       resource, successful_remvoes, len(self.instances),
-                       elapsed_time / 1000)
+                       resource, successful_remvoes, len(self.instances), elapsed_time)
 
         if not unlocked:
             raise LockError('Can not release the lock')
@@ -303,8 +301,7 @@ class Redis:
         ], return_exceptions=True)
         successful_sets = sum(s is True for s in successes)
 
-        locked = True if successful_sets >= int(
-            len(self.instances) / 2) + 1 else False
+        locked = True if successful_sets >= int(len(self.instances) / 2) + 1 else False
 
         return locked
 

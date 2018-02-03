@@ -6,7 +6,6 @@ import pytest
 from asynctest import CoroutineMock, patch
 
 from aioredlock import Aioredlock, Lock, LockError
-from aioredlock.algorithm import validate_lock_timeout
 
 
 async def dummy_sleep(seconds):
@@ -24,20 +23,26 @@ def locked_lock():
 def lock_manager_redis_patched():
     with asynctest.patch("aioredlock.algorithm.Redis", CoroutineMock) as mock_redis:
         with patch("asyncio.sleep", dummy_sleep):
-            mock_redis.set_lock = CoroutineMock(return_value=5)
-            mock_redis.unset_lock = CoroutineMock(return_value=5)
+            mock_redis.set_lock = CoroutineMock(return_value=0.005)
+            mock_redis.unset_lock = CoroutineMock(return_value=0.005)
             mock_redis.is_locked = CoroutineMock(return_value=False)
             mock_redis.clear_connections = CoroutineMock()
 
-            lock_manager = Aioredlock(lock_timeout=1000, drift=102)
+            lock_manager = Aioredlock(lock_timeout=1.0, drift=0.102)
 
             yield lock_manager, mock_redis
 
 
-def test_validate_lock_timeout():
+@pytest.mark.parametrize('method,exc_message', [
+    ('_validate_lock_timeout', "Lock timeout must be greater than 0 seconds."),
+    ('_validate_drift', "Drift must be greater than 0 seconds."),
+    ('_validate_retry_count', "Retry count must be greater or equal 1."),
+    ('_validate_retry_delay', "Retry delay must be greater than 0 seconds."),
+])
+def test_validator(method, exc_message):
     with pytest.raises(ValueError) as exc_info:
-        validate_lock_timeout(None, None, -1)
-    assert str(exc_info.value) == "Lock timeout must be greater than 0 ms."
+        getattr(Aioredlock, method)(None, None, -1)
+    assert str(exc_info.value) == exc_message
 
 
 class TestAioredlock:
@@ -52,7 +57,7 @@ class TestAioredlock:
                 lock_manager.lock_timeout
             )
             assert lock_manager.redis
-            assert lock_manager.drift == 102
+            assert lock_manager.drift == pytest.approx(0.102)
 
     def test_initialization_with_params(self):
         with patch("aioredlock.algorithm.Redis.__init__") as mock_redis:
@@ -64,17 +69,25 @@ class TestAioredlock:
                 lock_manager.lock_timeout
             )
             assert lock_manager.redis
-            assert lock_manager.drift == 102
+            assert lock_manager.drift == pytest.approx(0.102)
 
-    def test_initialization_with_invalid_timeout(self):
+    @pytest.mark.parametrize('param', [
+        'lock_timeout',
+        'drift',
+        'retry_count',
+        'retry_delay_min',
+        'retry_delay_max',
+    ])
+    @pytest.mark.parametrize('value,exc_type', [
+        (-1, ValueError),
+        (0, ValueError),
+        ('string', ValueError),
+        (None, TypeError)
+    ])
+    def test_initialization_with_invalid_params(self, param, value, exc_type):
         lock_manager = None
-        # Non-positive integers
-        with pytest.raises(ValueError):
-            lock_manager = Aioredlock(lock_timeout=-1)
-        assert lock_manager is None
-        # Invalid literal during int() conversion
-        with pytest.raises(ValueError):
-            lock_manager = Aioredlock(lock_timeout="a")
+        with pytest.raises(exc_type):
+            lock_manager = Aioredlock(**{param: value})
         assert lock_manager is None
 
     @pytest.mark.asyncio
@@ -96,7 +109,7 @@ class TestAioredlock:
         lock_manager, redis = lock_manager_redis_patched
         redis.set_lock = CoroutineMock(side_effect=[
             LockError('Can not lock'),
-            1
+            0.001
         ])
 
         lock = await lock_manager.lock('resource')
@@ -137,8 +150,8 @@ class TestAioredlock:
     async def test_lock_one_timeout(self, lock_manager_redis_patched, locked_lock):
         lock_manager, redis = lock_manager_redis_patched
         redis.set_lock = CoroutineMock(side_effect=[
-            1500,
-            1
+            1.5,
+            0.001
         ])
 
         lock = await lock_manager.lock('resource')
@@ -157,9 +170,9 @@ class TestAioredlock:
     async def test_lock_expire_retries_for_timeouts(self, lock_manager_redis_patched, locked_lock):
         lock_manager, redis = lock_manager_redis_patched
         redis.set_lock = CoroutineMock(side_effect=[
-            1100,
-            1001,
-            2000
+            1.100,
+            1.001,
+            2.000
         ])
 
         with pytest.raises(LockError):
@@ -179,9 +192,9 @@ class TestAioredlock:
     async def test_lock_expire_retries_because_drift(self, lock_manager_redis_patched, locked_lock):
         lock_manager, redis = lock_manager_redis_patched
         redis.set_lock = CoroutineMock(side_effect=[
-            898,
-            970,
-            900
+            0.898,
+            0.970,
+            0.900
         ])
 
         with pytest.raises(LockError):
@@ -203,17 +216,17 @@ class TestAioredlock:
 
         async def mock_set_lock(*args, **kwargs):
             await real_sleep(1)
-            return 1000
+            return 1.0
 
         redis.set_lock = CoroutineMock(side_effect=mock_set_lock)
 
         with pytest.raises(asyncio.TimeoutError):
             await asyncio.wait_for(lock_manager.lock('resource'), 0.1)
 
-        await real_sleep(0.1)
         # Exception handling of cancelled lock runs in bacround
         # and can not be awaited, so we have to wait untill unset_lock is
         # complited with this asincio.sleep()
+        await real_sleep(0.1)
 
         redis.set_lock.assert_called_once_with('resource', ANY)
         redis.unset_lock.assert_called_once_with('resource', ANY)

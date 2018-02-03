@@ -11,29 +11,57 @@ from aioredlock.lock import Lock
 from aioredlock.redis import Redis
 
 
-def validate_lock_timeout(instance, attribute, value):
-    """
-    Validate if lock_timeout is greater than 0
-    """
-    if value <= 0:
-        raise ValueError("Lock timeout must be greater than 0 ms.")
-
-
 @attr.s
 class Aioredlock:
+
     redis_connections = attr.ib(default=[{'host': 'localhost', 'port': 6379}])
-    lock_timeout = attr.ib(default=10000, convert=int, validator=validate_lock_timeout)
+
+    lock_timeout = attr.ib(default=10.0, convert=float)
     # Proportional drift time to the length of the lock
     # See https://redis.io/topics/distlock#is-the-algorithm-asynchronous for more info
     drift = attr.ib(default=attr.Factory(
-        lambda self: int(self.lock_timeout * 0.01) + 2, takes_self=True
-    ), convert=int)
+        lambda self: self.lock_timeout * 0.01 + 0.002, takes_self=True
+    ), convert=float)
+
     retry_count = attr.ib(default=3, convert=int)
     retry_delay_min = attr.ib(default=0.1, convert=float)
     retry_delay_max = attr.ib(default=0.3, convert=float)
 
     def __attrs_post_init__(self):
         self.redis = Redis(self.redis_connections, self.lock_timeout)
+
+    @lock_timeout.validator
+    def _validate_lock_timeout(self, attribute, value):
+        """
+        Validate if lock_timeout is greater than 0
+        """
+        if value <= 0:
+            raise ValueError("Lock timeout must be greater than 0 seconds.")
+
+    @drift.validator
+    def _validate_drift(self, attribute, value):
+        """
+        Validate if drift is greater than 0
+        """
+        if value <= 0:
+            raise ValueError("Drift must be greater than 0 seconds.")
+
+    @retry_count.validator
+    def _validate_retry_count(self, attribute, value):
+        """
+        Validate if retry_count is greater or equal 1
+        """
+        if value < 1:
+            raise ValueError("Retry count must be greater or equal 1.")
+
+    @retry_delay_min.validator
+    @retry_delay_max.validator
+    def _validate_retry_delay(self, attribute, value):
+        """
+        Validate if retry_delay_min and retry_delay_max is greater than 0
+        """
+        if value <= 0:
+            raise ValueError("Retry delay must be greater than 0 seconds.")
 
     @property
     def log(self):
@@ -57,19 +85,18 @@ class Aioredlock:
             # global try/except to catch CancelledError
             for n in range(self.retry_count):
                 self.log.debug('Acquireing lock "%s" try %d/%d',
-                               resource, n+1, self.retry_count)
+                               resource, n + 1, self.retry_count)
                 if n != 0:
                     delay = random.uniform(self.retry_delay_min,
                                            self.retry_delay_max)
                     await asyncio.sleep(delay)
                 try:
-                    elapsed_time = \
-                        await self.redis.set_lock(resource, lock_identifier)
+                    elapsed_time = await self.redis.set_lock(resource, lock_identifier)
                 except LockError as exc:
                     error = exc
                     continue
 
-                if int(self.lock_timeout - elapsed_time - self.drift) <= 0:
+                if self.lock_timeout - elapsed_time - self.drift <= 0:
                     error = LockError('Lock timeout')
                     self.log.debug('Timeout in acquireing the lock "%s"',
                                    resource)
