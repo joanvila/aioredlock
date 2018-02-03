@@ -1,4 +1,4 @@
-from aioredlock import Lock, Aioredlock
+from aioredlock import Aioredlock, Lock
 
 
 class TestLock:
