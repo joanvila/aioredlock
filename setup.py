@@ -42,7 +42,7 @@ setup(
 
     packages=find_packages(),
 
-    install_requires=['aioredis'],
+    install_requires=['aioredis', 'attrs'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest', 'pytest-asyncio', 'pytest-mock', 'pytest-cov']
 )
