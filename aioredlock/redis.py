@@ -39,11 +39,11 @@ class Instance:
         Redis instance constructor
 
         Constructor takes single argument - a redis host address
-        An address can be one of the following:
+        The address can be one of the following:
          * a dict - {'host': 'localhost', 'port': 6379,
                      'db': 0, 'password': 'pass'}
            all keys except host and port will be passed as kwargs to
-           aioredis.create_redis_pool();
+           the aioredis.create_redis_pool();
          * a Redis URI - "redis://host:6379/0?encoding=utf-8";
          * a (host, port) tuple - ('localhost', 6379);
          * or a unix domain socket path string - "/path/to/redis.sock".
@@ -82,18 +82,17 @@ class Instance:
             return await aioredis.create_pool(*args, **kwargs)
 
     async def _register_scripts(self, redis):
-        futs = []
+        tasks = []
         for script in [
                 self.SET_LOCK_SCRIPT,
                 self.UNSET_LOCK_SCRIPT,
         ]:
             script = re.sub(r'^\s+', '', script, flags=re.M).strip()
-            fut = redis.script_load(script)
-            futs.append(fut)
+            tasks.append(redis.script_load(script))
         (
             self.set_lock_script_sha1,
             self.unset_lock_script_sha1
-        ) = (r.decode() for r in await asyncio.gather(*futs))
+        ) = (r.decode() for r in await asyncio.gather(*tasks))
 
     async def connect(self):
         """
@@ -101,8 +100,8 @@ class Instance:
         """
 
         if isinstance(self.connection, dict):
-            # dict like {'host': 'localhost', 'port': 6379,
-            #            'db': 0, 'password': 'pass'}
+            # a dict like {'host': 'localhost', 'port': 6379,
+            #              'db': 0, 'password': 'pass'}
             kwargs = self.connection.copy()
             address = (
                 kwargs.pop('host', 'localhost'),
@@ -110,8 +109,8 @@ class Instance:
             )
             redis_kwargs = kwargs
         else:
-            # tuple or list ('localhost', 6379)
-            # string "redis://host:6379/0?encoding=utf-8" or
+            # a tuple or list ('localhost', 6379)
+            # a string "redis://host:6379/0?encoding=utf-8" or
             # a unix domain socket path "/path/to/redis.sock"
             address = self.connection
             redis_kwargs = {}
@@ -152,7 +151,7 @@ class Instance:
                            resource, repr(self), repr(exc))
             raise LockError('Can not set lock') from exc
         except asyncio.CancelledError:
-            self.log.debug('Lock "%s" set is cancelled on %s',
+            self.log.debug('Lock "%s" is cancelled on %s',
                            resource, repr(self))
             raise
         except Exception as exc:
@@ -167,8 +166,7 @@ class Instance:
         Unlock this instance
         :param resource: redis key to set
         :param lock_identifier: uniquie id of lock
-        :raises: LockError if lock resource acquired with
-            different lock_identifier
+        :raises: LockError if the lock resource acquired with different lock_identifier
         """
         try:
             with await self.connect() as redis:
@@ -198,9 +196,9 @@ class Instance:
 
     async def is_locked(self, resource):
         """
-        Checks if the resource is locked by any client.
+        Checks if the resource is locked by any redlock instance.
 
-        :param resource: The resource string name to lock
+        :param resource: The resource string name to check
         :returns: True if locked else False
         """
 
@@ -255,7 +253,7 @@ class Redis:
                        elapsed_time / 1000)
 
         if not locked:
-            raise LockError('Can not acquire lock')
+            raise LockError('Can not acquire the lock "%s"' % resource)
 
         return elapsed_time
 
@@ -267,7 +265,7 @@ class Redis:
         :param lock_identifier: The id of the lock. A unique string
         :return int: The elapsed time that took to lock the instances
             in milliseconds
-        :raises: LockError if the lock has not mathing identifier in more then
+        :raises: LockError if the lock has not matching identifier in more then
             (N/2 - 1) instances
         """
         start_time = int(time.time() * 1000)
@@ -287,13 +285,13 @@ class Redis:
                        elapsed_time / 1000)
 
         if not unlocked:
-            raise LockError('Can not release lock')
+            raise LockError('Can not release the lock')
 
         return elapsed_time
 
     async def is_locked(self, resource):
         """
-        Checks if the resource is locked by any client.
+        Checks if the resource is locked by any redlock instance.
 
         :param resource: The resource string name to lock
         :returns: True if locked else False

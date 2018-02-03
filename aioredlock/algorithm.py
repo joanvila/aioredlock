@@ -44,7 +44,7 @@ class Aioredlock:
         Tries to acquire de lock.
         If the lock is correctly acquired, the valid property of
         the returned lock is True.
-        In case of fault LockError exception will be raised
+        In case of fault the LockError exception will be raised
 
         :param resource: The string identifier of the resource to lock
         :return: :class:`aioredlock.Lock`
@@ -96,10 +96,8 @@ class Aioredlock:
 
     async def extend(self, lock):
         """
-        Tries to extend lock lifetime by lock_timeout
-        Returns True if the lock is valid and lifetime correctly extended on
-        more then half redis instances.
-        Raises LockError if can not extend more then half of instances
+        Tries to reset the lock's lifetime to lock_timeout
+        In case of fault the LockError exception will be raised
 
         :param lock: :class:`aioredlock.Lock`
         :raises: RuntimeError if lock is not valid
@@ -117,6 +115,7 @@ class Aioredlock:
         """
         Release the lock and sets it's validity to False if
         lock successfuly released.
+        In case of fault the LockError exception will be raised
 
         :param lock: :class:`aioredlock.Lock`
         :raises: LockError in case of fault
@@ -131,9 +130,9 @@ class Aioredlock:
 
     async def is_locked(self, resource_or_lock):
         """
-        Checks if the resource or the lock is locked by any client.
+        Checks if the resource or the lock is locked by any redlock instance.
 
-        :param resource_or_lock: The resource string name or aioredlock.Lock instance
+        :param resource_or_lock: resource name or aioredlock.Lock instance
         :returns: True if locked else False
         """
 
