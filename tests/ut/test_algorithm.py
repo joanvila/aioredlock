@@ -223,9 +223,8 @@ class TestAioredlock:
         with pytest.raises(asyncio.TimeoutError):
             await asyncio.wait_for(lock_manager.lock('resource'), 0.1)
 
-        # Exception handling of cancelled lock runs in bacround
-        # and can not be awaited, so we have to wait untill unset_lock is
-        # complited with this asincio.sleep()
+        # The exception handling of the cancelled lock is run in bacround and
+        # can not be awaited, so we have to sleep untill the unset_lock has done.
         await real_sleep(0.1)
 
         redis.set_lock.assert_called_once_with('resource', ANY)
