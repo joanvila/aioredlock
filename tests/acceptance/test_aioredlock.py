@@ -1,5 +1,4 @@
 import asyncio
-import os
 import uuid
 
 import aioredis
@@ -17,8 +16,8 @@ def redis_one_connection():
 @pytest.fixture
 def redis_two_connections():
     return [
-        {'host': 'localhost', 'port': 6379},
-        {'host': 'localhost', 'port': 6378}
+        {'host': 'localhost', 'port': 6379, 'db': 0},
+        {'host': 'localhost', 'port': 6379, 'db': 1}
     ]
 
 
@@ -111,10 +110,7 @@ class TestAioredlock:
 
         await self.check_two_locks_on_same_resource(Aioredlock(redis_one_connection))
 
-    reason = 'CI only has one redis instance'
-
     @pytest.mark.asyncio
-    @pytest.mark.skipif(os.getenv('CI'), reason=reason)
     async def test_simple_aioredlock_two_instances(
             self,
             redis_two_connections):
@@ -122,7 +118,6 @@ class TestAioredlock:
         await self.check_simple_lock(Aioredlock(redis_two_connections))
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(os.getenv('CI'), reason=reason)
     async def test_aioredlock_two_locks_on_different_resources_two_instances(
             self,
             redis_two_connections):
@@ -130,7 +125,6 @@ class TestAioredlock:
         await self.check_two_locks_on_different_resources(Aioredlock(redis_two_connections))
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(os.getenv('CI'), reason=reason)
     async def test_aioredlock_two_locks_on_same_resource_two_instances(
             self,
             redis_two_connections):
@@ -138,7 +132,6 @@ class TestAioredlock:
         await self.check_two_locks_on_same_resource(Aioredlock(redis_two_connections))
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(os.getenv('CI'), reason=reason)
     async def test_aioredlock_lock_with_first_failed_try_two_instances(
         self,
         redis_two_connections
