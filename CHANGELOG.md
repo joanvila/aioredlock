@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 0.2.0 - upcoming
+## 0.2.0 - 2018-03-24
 ### Changed
 - Support for aioredis version to 1.0.0.
 - Complite lock refactoring using lua scripts .
