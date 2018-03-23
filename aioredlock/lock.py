@@ -1,10 +1,19 @@
+import attr
 
+
+@attr.s
 class Lock:
 
-    def __init__(self, resource, lock_identifier, valid=False):
-        """
-        Initialize a lock with its fields.
-        """
-        self.resource = resource
-        self.id = lock_identifier
-        self.valid = valid
+    lock_manager = attr.ib()
+    resource = attr.ib()
+    id = attr.ib()
+    valid = attr.ib(default=False)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.lock_manager.unlock(self)
+
+    async def extend(self):
+        await self.lock_manager.extend(self)

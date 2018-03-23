@@ -1,6 +1,7 @@
-from setuptools import setup, find_packages
 from codecs import open
 from os import path
+
+from setuptools import find_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
@@ -41,7 +42,7 @@ setup(
 
     packages=find_packages(),
 
-    install_requires=['aioredis'],
+    install_requires=['aioredis', 'attrs'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest', 'pytest-asyncio', 'pytest-mock', 'pytest-cov']
 )

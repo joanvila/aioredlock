@@ -2,9 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
-## 0.2.0 - 2018-01-07
+## 0.2.0 - upcoming
 ### Changed
 - Support for aioredis version to 1.0.0.
+- Complite lock refactoring using lua scripts .
+- ``Aioredlock.extend(lock)`` is implemented to extend the lock lifetime.
+- The lock manager now raises the ``LockError`` exceptions if it can not lock, extend or unlock the resource.
+- The lock now can be released with async context manager.
+- Support the same address formats as aioredis does.
+- ``Aioredlock.is_locked()`` is implemented to check is the resource acquired by another redlock instance.
+- The ``lock_timeout`` and ``drift`` parameters now mesured in seconds, just like ``retry_delay_min`` and ``retry_delay_max``.
 
 ## 0.1.1 - 2017-05-14
 
