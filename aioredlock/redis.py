@@ -316,3 +316,7 @@ class Redis:
                 tasks.append(i._pool.wait_closed())
         if tasks:
             await asyncio.gather(*tasks)
+
+        # Reset Pools after closed so can be re-used
+        for i in self.instances:
+            i._pool = None
