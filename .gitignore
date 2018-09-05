@@ -2,6 +2,7 @@
 
 .DS_Store
 *.swp
+.eggs/
 build/
 dist/
 *.egg-info/
@@ -16,3 +17,4 @@ __pycache__/
 
 .tox
 .cache
+.pytest_cache
