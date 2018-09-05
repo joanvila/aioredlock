@@ -61,6 +61,19 @@ class FakePool:
         return digest.encode()
 
 
+def fake_create_redis_pool(fake_pool):
+    """
+    Original Redis pool have magick method __await__ to create exclusive
+    connection. CoroutineMock sees this method and thinks that Redis pool
+    instance is awaitable and tries to await it.
+    To avoit this behavior we are using this constructor with Mock.side_effect
+    instead of Mock.return_value.
+    """
+    async def create_redis_pool(*args, **kwargs):
+        return fake_pool
+    return create_redis_pool
+
+
 class TestInstance:
 
     script_names = ['SET_LOCK_SCRIPT', 'UNSET_LOCK_SCRIPT']
@@ -88,8 +101,9 @@ class TestInstance:
     async def test_connect_pool_not_created(self, connection, address, redis_kwargs):
         with patch('aioredlock.redis.Instance._create_redis_pool') as \
                 create_redis_pool:
+
             fake_pool = FakePool()
-            create_redis_pool.return_value = fake_pool
+            create_redis_pool.side_effect = fake_create_redis_pool(fake_pool)
             instance = Instance(connection)
 
             assert instance._pool is None
@@ -130,7 +144,7 @@ class TestInstance:
         with patch('aioredlock.redis.Instance._create_redis_pool') as \
                 create_redis_pool:
             fake_pool = FakePool()
-            create_redis_pool.return_value = fake_pool
+            create_redis_pool.side_effect = fake_create_redis_pool(fake_pool)
             instance = Instance(('localhost', 6379))
             yield instance
 
