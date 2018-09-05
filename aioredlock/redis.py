@@ -127,6 +127,15 @@ class Instance:
 
         return await self._pool
 
+    async def close(self):
+        """
+        Closes connection and resets pool
+        """
+        if self._pool is not None:
+            self._pool.close()
+            await self._pool.wait_closed()
+        self._pool = None
+
     async def set_lock(self, resource, lock_identifier, lock_timeout):
         """
         Lock this instance and set lock expiration time to lock_timeout
@@ -309,14 +318,7 @@ class Redis:
 
         self.log.debug('Clearing connection')
 
-        tasks = []
-        for i in self.instances:
-            if i._pool is not None:
-                i._pool.close()
-                tasks.append(i._pool.wait_closed())
-        if tasks:
-            await asyncio.gather(*tasks)
-
-        # Reset Pools after closed so can be re-used
-        for i in self.instances:
-            i._pool = None
+        if self.instances:
+            await asyncio.gather(*(
+                i.close() for i in self.instances
+            ))
