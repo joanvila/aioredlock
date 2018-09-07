@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.1 - 2018-09-07
+
+### Changed
+- Move all closing logic from Redis.clear_connections() to Instance.close()
+- Fixes for new version of asynctest
+
 ## 0.2.0 - 2018-03-24
 ### Changed
 - Support for aioredis version to 1.0.0.
