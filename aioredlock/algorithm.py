@@ -16,16 +16,16 @@ class Aioredlock:
 
     redis_connections = attr.ib(default=[{'host': 'localhost', 'port': 6379}])
 
-    lock_timeout = attr.ib(default=10.0, convert=float)
+    lock_timeout = attr.ib(default=10.0, converter=float)
     # Proportional drift time to the length of the lock
     # See https://redis.io/topics/distlock#is-the-algorithm-asynchronous for more info
     drift = attr.ib(default=attr.Factory(
         lambda self: self.lock_timeout * 0.01 + 0.002, takes_self=True
-    ), convert=float)
+    ), converter=float)
 
-    retry_count = attr.ib(default=3, convert=int)
-    retry_delay_min = attr.ib(default=0.1, convert=float)
-    retry_delay_max = attr.ib(default=0.3, convert=float)
+    retry_count = attr.ib(default=3, converter=int)
+    retry_delay_min = attr.ib(default=0.1, converter=float)
+    retry_delay_max = attr.ib(default=0.3, converter=float)
 
     def __attrs_post_init__(self):
         self.redis = Redis(self.redis_connections, self.lock_timeout)
