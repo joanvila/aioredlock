@@ -116,10 +116,8 @@ class TestInstance:
             redis_connection = await aioredis.create_redis_pool('redis://localhost')
             instance = Instance(redis_connection)
 
-            pool = await instance.connect()
-
+            await instance.connect()
             assert not create_redis_pool.called
-            assert pool is redis_connection
 
     @pytest.fixture
     def fake_instance(self):
