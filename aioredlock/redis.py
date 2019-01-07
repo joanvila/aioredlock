@@ -98,7 +98,6 @@ class Instance:
             redis_kwargs = kwargs
         elif isinstance(self.connection, aioredis.Redis):
             self._pool = self.connection
-            return self._pool
         else:
             # a tuple or list ('localhost', 6379)
             # a string "redis://host:6379/0?encoding=utf-8" or
