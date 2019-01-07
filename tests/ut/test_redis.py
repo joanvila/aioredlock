@@ -109,6 +109,18 @@ class TestInstance:
             assert not create_redis_pool.called
             assert pool is fake_pool
 
+    @pytest.mark.asyncio
+    async def test_connect_pool_aioredis_instance(self):
+        with patch('aioredlock.redis.Instance._create_redis_pool') as \
+                create_redis_pool:
+            redis_connection = await aioredis.create_redis_pool('redis://localhost')
+            instance = Instance(redis_connection)
+
+            pool = await instance.connect()
+
+            assert not create_redis_pool.called
+            assert pool is redis_connection
+
     @pytest.fixture
     def fake_instance(self):
         with patch('aioredlock.redis.Instance._create_redis_pool') as \

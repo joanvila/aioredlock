@@ -47,6 +47,7 @@ class Instance:
          * a Redis URI - "redis://host:6379/0?encoding=utf-8";
          * a (host, port) tuple - ('localhost', 6379);
          * or a unix domain socket path string - "/path/to/redis.sock".
+         * a redis connection pool.
 
         :param connection: redis host address (dict, tuple or str)
         """
@@ -95,6 +96,9 @@ class Instance:
                 kwargs.pop('port', 6379)
             )
             redis_kwargs = kwargs
+        elif isinstance(self.connection, aioredis.Redis):
+            self._pool = self.connection
+            return self._pool
         else:
             # a tuple or list ('localhost', 6379)
             # a string "redis://host:6379/0?encoding=utf-8" or
@@ -116,7 +120,7 @@ class Instance:
         """
         Closes connection and resets pool
         """
-        if self._pool is not None:
+        if self._pool is not None and not isinstance(self.connection, aioredis.Redis):
             self._pool.close()
             await self._pool.wait_closed()
         self._pool = None
