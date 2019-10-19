@@ -6,5 +6,5 @@ class AioredlockError(Exception):
 
 class LockError(AioredlockError):
     """
-    Error in acquireing or releasing the lock
+    Error in acquiring or releasing the lock
     """

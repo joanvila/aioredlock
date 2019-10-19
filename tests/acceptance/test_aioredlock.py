@@ -168,7 +168,7 @@ class TestAioredlock:
 
         # here we will try to lock while first redis instance still have
         # resource key occupied by garbage
-        # but just before second attemt patched asyncio.sleep() function
+        # but just before second attempt patched asyncio.sleep() function
         # will clean up garbage key to let lock be acquired
         with asynctest.patch("asyncio.sleep", fake_sleep):
             lock = await lock_manager.lock(resource)

@@ -13,7 +13,7 @@ async def lock_context():
     ])
 
     if await lock_manager.is_locked("resource"):
-        print.error('The resource is already acquired')
+        print('The resource is already acquired')
 
     try:
         async with await lock_manager.lock("resource") as lock:
