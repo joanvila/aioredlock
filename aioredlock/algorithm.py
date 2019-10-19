@@ -84,7 +84,7 @@ class Aioredlock:
         try:
             # global try/except to catch CancelledError
             for n in range(self.retry_count):
-                self.log.debug('Acquireing lock "%s" try %d/%d',
+                self.log.debug('Acquiring lock "%s" try %d/%d',
                                resource, n + 1, self.retry_count)
                 if n != 0:
                     delay = random.uniform(self.retry_delay_min,
@@ -98,7 +98,7 @@ class Aioredlock:
 
                 if self.lock_timeout - elapsed_time - self.drift <= 0:
                     error = LockError('Lock timeout')
-                    self.log.debug('Timeout in acquireing the lock "%s"',
+                    self.log.debug('Timeout in acquiring the lock "%s"',
                                    resource)
                     continue
 
@@ -109,7 +109,7 @@ class Aioredlock:
                 raise error
 
         except Exception as exc:
-            # cleanup in case of fault or cencellation will run in background
+            # cleanup in case of fault or cancellation will run in background
             async def cleanup():
                 self.log.debug('Cleaning up lock "%s"', resource)
                 with contextlib.suppress(LockError):
@@ -141,7 +141,7 @@ class Aioredlock:
     async def unlock(self, lock):
         """
         Release the lock and sets it's validity to False if
-        lock successfuly released.
+        lock successfully released.
         In case of fault the LockError exception will be raised
 
         :param lock: :class:`aioredlock.Lock`
@@ -179,5 +179,5 @@ class Aioredlock:
         """
         Clear all the redis connections
         """
-        self.log.debug('Destroing %s', repr(self))
+        self.log.debug('Destroying %s', repr(self))
         await self.redis.clear_connections()
