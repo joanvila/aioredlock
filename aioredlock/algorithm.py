@@ -81,6 +81,12 @@ class Aioredlock:
         lock_identifier = str(uuid.uuid4())
         error = RuntimeError('Retry count less then one')
 
+        # cleanup in case of fault or cancellation will run in background
+        async def cleanup():
+            self.log.debug('Cleaning up lock "%s"', resource)
+            with contextlib.suppress(LockError):
+                await self.redis.unset_lock(resource, lock_identifier)
+
         try:
             # global try/except to catch CancelledError
             for n in range(self.retry_count):
@@ -108,15 +114,8 @@ class Aioredlock:
                 # break never reached
                 raise error
 
-        except Exception as exc:
-            # cleanup in case of fault or cancellation will run in background
-            async def cleanup():
-                self.log.debug('Cleaning up lock "%s"', resource)
-                with contextlib.suppress(LockError):
-                    await self.redis.unset_lock(resource, lock_identifier)
-
+        except (Exception, asyncio.TimeoutError):
             asyncio.ensure_future(cleanup())
-
             raise
 
         return Lock(self, resource, lock_identifier, valid=True)
