@@ -20,7 +20,11 @@ async def lock_context():
             assert lock.valid is True
             assert await lock_manager.is_locked("resource") is True
             # Do your stuff having the lock
-            await lock.extend()
+            await asyncio.sleep(lock_manager.lock_timeout)
+            # lock manager will extend the lock automatically
+            assert await lock_manager.is_locked(lock)
+            # or you can extend your lock's lifetime manually
+            await lock_manager.extend(lock)
             # Do more stuff having the lock
         assert lock.valid is False  # lock will be released by context manager
     except LockError:

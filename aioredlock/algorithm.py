@@ -26,6 +26,7 @@ class Aioredlock:
     retry_count = attr.ib(default=3, converter=int)
     retry_delay_min = attr.ib(default=0.1, converter=float)
     retry_delay_max = attr.ib(default=0.3, converter=float)
+    watchdogs = {}
 
     def __attrs_post_init__(self):
         self.redis = Redis(self.redis_connections, self.lock_timeout)
@@ -66,6 +67,17 @@ class Aioredlock:
     @property
     def log(self):
         return logging.getLogger(__name__)
+
+    async def auto_extend(self, lock):
+        """
+        Tries to reset the lock's lifetime to lock_timeout every 0.6*lock_timeout automatically
+        In case of fault the LockError exception will be raised
+        :param lock: :class:`aioredlock.Lock`
+        :raises: LockError in case of fault
+        """
+        await asyncio.sleep(0.6 * self.lock_timeout)
+        await self.extend(lock)
+        self.watchdogs[lock.resource] = asyncio.ensure_future(self.auto_extend(lock))
 
     async def lock(self, resource):
         """
@@ -119,7 +131,9 @@ class Aioredlock:
 
             raise
 
-        return Lock(self, resource, lock_identifier, valid=True)
+        lock = Lock(self, resource, lock_identifier, valid=True)
+        self.watchdogs[lock.resource] = asyncio.ensure_future(self.auto_extend(lock))
+        return lock
 
     async def extend(self, lock):
         """
@@ -147,8 +161,10 @@ class Aioredlock:
         :param lock: :class:`aioredlock.Lock`
         :raises: LockError in case of fault
         """
-
         self.log.debug('Releasing lock "%s"', lock.resource)
+
+        self.watchdogs[lock.resource].cancel()
+        self.watchdogs.pop(lock.resource)
 
         await self.redis.unset_lock(lock.resource, lock.id)
         # raises LockError if can not unlock
@@ -177,7 +193,12 @@ class Aioredlock:
 
     async def destroy(self):
         """
-        Clear all the redis connections
+        cancel all watchdogs and Clear all the redis connections
         """
         self.log.debug('Destroying %s', repr(self))
+
+        for resource in self.watchdogs:
+            self.watchdogs[resource].cancel()
+        self.watchdogs = {}
+
         await self.redis.clear_connections()

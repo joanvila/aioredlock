@@ -314,3 +314,23 @@ class TestAioredlock:
         await lock_manager.destroy()
 
         redis.clear_connections.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_auto_extend(self):
+        with asynctest.patch("aioredlock.algorithm.Redis", CoroutineMock) as mock_redis:
+            mock_redis.set_lock = CoroutineMock(return_value=0.005)
+            mock_redis.unset_lock = CoroutineMock(return_value=0.005)
+            mock_redis.is_locked = CoroutineMock(return_value=False)
+            mock_redis.clear_connections = CoroutineMock()
+
+            lock_manager = Aioredlock(lock_timeout=1.0, drift=0.102)
+
+            lock = await lock_manager.lock("resource")
+
+            await real_sleep(lock_manager.lock_timeout * 6)
+
+            calls = [call('resource', lock.id) for _ in range(10)]
+            mock_redis.set_lock.assert_has_calls(calls)
+
+            await lock_manager.destroy()
+            mock_redis.clear_connections.assert_called_once_with()
