@@ -26,7 +26,10 @@ class Aioredlock:
     retry_count = attr.ib(default=3, converter=int)
     retry_delay_min = attr.ib(default=0.1, converter=float)
     retry_delay_max = attr.ib(default=0.3, converter=float)
+
+    # lifetime auto extend parameter
     watchdogs = {}
+    auto_extend_count = attr.ib(default=5, converter=int)
 
     def __attrs_post_init__(self):
         self.redis = Redis(self.redis_connections, self.lock_timeout)
@@ -68,16 +71,19 @@ class Aioredlock:
     def log(self):
         return logging.getLogger(__name__)
 
-    async def auto_extend(self, lock):
+    async def __auto_extend(self, lock, count):
         """
         Tries to reset the lock's lifetime to lock_timeout every 0.6*lock_timeout automatically
         In case of fault the LockError exception will be raised
         :param lock: :class:`aioredlock.Lock`
         :raises: LockError in case of fault
         """
-        await asyncio.sleep(0.6 * self.lock_timeout)
-        await self.extend(lock)
-        self.watchdogs[lock.resource] = asyncio.ensure_future(self.auto_extend(lock))
+        if count:
+            await asyncio.sleep(0.6 * self.lock_timeout)
+            await self.extend(lock)
+            self.watchdogs[lock.resource] = asyncio.ensure_future(self.__auto_extend(lock, count-1))
+        else:
+            self.watchdogs.pop(lock.resource)
 
     async def lock(self, resource):
         """
@@ -132,7 +138,8 @@ class Aioredlock:
             raise
 
         lock = Lock(self, resource, lock_identifier, valid=True)
-        self.watchdogs[lock.resource] = asyncio.ensure_future(self.auto_extend(lock))
+        self.watchdogs[lock.resource] = asyncio.ensure_future(self.__auto_extend(lock, self.auto_extend_count))
+
         return lock
 
     async def extend(self, lock):
@@ -163,8 +170,9 @@ class Aioredlock:
         """
         self.log.debug('Releasing lock "%s"', lock.resource)
 
-        self.watchdogs[lock.resource].cancel()
-        self.watchdogs.pop(lock.resource)
+        if self.watchdogs.get(lock.resource, None):
+            self.watchdogs[lock.resource].cancel()
+            self.watchdogs.pop(lock.resource)
 
         await self.redis.unset_lock(lock.resource, lock.id)
         # raises LockError if can not unlock

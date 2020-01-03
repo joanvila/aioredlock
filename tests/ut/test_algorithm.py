@@ -329,7 +329,7 @@ class TestAioredlock:
 
             await real_sleep(lock_manager.lock_timeout * 6)
 
-            calls = [call('resource', lock.id) for _ in range(10)]
+            calls = [call('resource', lock.id) for _ in range(lock_manager.auto_extend_count + 1)]
             mock_redis.set_lock.assert_has_calls(calls)
 
             await lock_manager.destroy()
