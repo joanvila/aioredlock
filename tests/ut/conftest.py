@@ -1,3 +1,5 @@
+import uuid
+
 import asynctest
 import pytest
 from asynctest import CoroutineMock, patch
@@ -26,3 +28,22 @@ def lock_manager_redis_patched():
             lock_manager = Aioredlock(internal_lock_timeout=1.0)
 
             yield lock_manager, mock_redis
+
+
+@pytest.fixture
+def aioredlock_patched():
+    with asynctest.patch("aioredlock.algorithm.Aioredlock", CoroutineMock) \
+            as mock_aioredlock:
+        with patch("asyncio.sleep", dummy_sleep):
+
+            async def dummy_lock(resource):
+                lock_identifier = str(uuid.uuid4())
+                return Lock(mock_aioredlock, resource,
+                            lock_identifier, valid=True)
+
+            mock_aioredlock.lock = CoroutineMock(side_effect=dummy_lock)
+            mock_aioredlock.extend = CoroutineMock()
+            mock_aioredlock.unlock = CoroutineMock()
+            mock_aioredlock.destroy = CoroutineMock()
+
+            yield mock_aioredlock
