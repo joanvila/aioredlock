@@ -238,6 +238,16 @@ class TestAioredlock:
             await lock_manager.extend(lock, -1)
 
     @pytest.mark.asyncio
+    async def test_extend_lock_error(self, lock_manager_redis_patched, locked_lock):
+        lock_manager, redis = lock_manager_redis_patched
+        lock = await lock_manager.lock('resource')
+
+        redis.set_lock = CoroutineMock(side_effect=LockError('Can not lock'))
+
+        with pytest.raises(LockError):
+            await lock_manager.extend(lock)
+
+    @pytest.mark.asyncio
     async def test_unlock(self, lock_manager_redis_patched, locked_lock):
         lock_manager, redis = lock_manager_redis_patched
 

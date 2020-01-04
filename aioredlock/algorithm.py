@@ -54,42 +54,9 @@ class Aioredlock:
     def log(self):
         return logging.getLogger(__name__)
 
-    async def _auto_extend(self, lock):
-        """
-        Tries to reset the lock's lifetime to lock_timeout every 0.6*lock_timeout automatically
-        In case of fault the LockError exception will be raised
-        :param lock: :class:`aioredlock.Lock`
-        :raises: LockError in case of fault
-        """
+    async def _set_lock(self, resource, lock_identifier, lease_time):
 
-        await asyncio.sleep(0.6 * self.internal_lock_timeout)
-        try:
-            await self.extend(lock)
-        except Exception:
-            self.log.debug('Error in extending the lock "%s"',
-                           lock.resource)
-
-        self._watchdogs[lock.resource] = asyncio.ensure_future(self._auto_extend(lock))
-
-    async def lock(self, resource, lock_timeout=None):
-        """
-        Tries to acquire de lock.
-        If the lock is correctly acquired, the valid property of
-        the returned lock is True.
-        In case of fault the LockError exception will be raised
-
-        :param resource: The string identifier of the resource to lock
-        :param lock_timeout: Lock's lifetime
-        :return: :class:`aioredlock.Lock`
-        :raises: LockError in case of fault
-        """
-        lock_identifier = str(uuid.uuid4())
         error = RuntimeError('Retry count less then one')
-
-        if lock_timeout is not None and lock_timeout <= 0:
-            raise ValueError("Lock timeout must be greater than 0 seconds.")
-
-        lease_time = lock_timeout or self.internal_lock_timeout
 
         # Proportional drift time to the length of the lock
         # See https://redis.io/topics/distlock#is-the-algorithm-asynchronous for more info
@@ -122,7 +89,7 @@ class Aioredlock:
                 # break never reached
                 raise error
 
-        except Exception as exc:
+        except Exception:
             # cleanup in case of fault or cancellation will run in background
             async def cleanup():
                 self.log.debug('Cleaning up lock "%s"', resource)
@@ -132,6 +99,44 @@ class Aioredlock:
             asyncio.ensure_future(cleanup())
 
             raise
+
+    async def _auto_extend(self, lock):
+        """
+        Tries to reset the lock's lifetime to lock_timeout every 0.6*lock_timeout automatically
+        In case of fault the LockError exception will be raised
+        :param lock: :class:`aioredlock.Lock`
+        :raises: LockError in case of fault
+        """
+
+        await asyncio.sleep(0.6 * self.internal_lock_timeout)
+        try:
+            await self.extend(lock)
+        except Exception:
+            self.log.debug('Error in extending the lock "%s"',
+                           lock.resource)
+
+        self._watchdogs[lock.resource] = asyncio.ensure_future(self._auto_extend(lock))
+
+    async def lock(self, resource, lock_timeout=None):
+        """
+        Tries to acquire de lock.
+        If the lock is correctly acquired, the valid property of
+        the returned lock is True.
+        In case of fault the LockError exception will be raised
+
+        :param resource: The string identifier of the resource to lock
+        :param lock_timeout: Lock's lifetime
+        :return: :class:`aioredlock.Lock`
+        :raises: LockError in case of fault
+        """
+        lock_identifier = str(uuid.uuid4())
+
+        if lock_timeout is not None and lock_timeout <= 0:
+            raise ValueError("Lock timeout must be greater than 0 seconds.")
+
+        lease_time = lock_timeout or self.internal_lock_timeout
+
+        await self._set_lock(resource, lock_identifier, lease_time)
 
         lock = Lock(self, resource, lock_identifier, lock_timeout, valid=True)
         if lock_timeout is None:
@@ -159,7 +164,12 @@ class Aioredlock:
 
         new_lease_time = lock_timeout or lock.lock_timeout or self.internal_lock_timeout
 
-        await self.redis.set_lock(lock.resource, lock.id, new_lease_time)
+        try:
+            await self._set_lock(lock.resource, lock.id, new_lease_time)
+        except Exception:
+            with contextlib.suppress(LockError):
+                await self.unlock(lock)
+            raise
 
     async def unlock(self, lock):
         """
@@ -171,6 +181,8 @@ class Aioredlock:
         :raises: LockError in case of fault
         """
         self.log.debug('Releasing lock "%s"', lock.resource)
+
+        lock.valid = False
 
         if lock.resource in self._watchdogs:
             self._watchdogs[lock.resource].cancel()
@@ -188,8 +200,6 @@ class Aioredlock:
 
         await self.redis.unset_lock(lock.resource, lock.id)
         # raises LockError if can not unlock
-
-        lock.valid = False
 
     async def is_locked(self, resource_or_lock):
         """
