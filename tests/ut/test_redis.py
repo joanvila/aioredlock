@@ -194,7 +194,7 @@ def redis_three_connections():
 @pytest.fixture
 def mock_redis_two_instances(redis_two_connections):
     pool = FakePool()
-    redis = Redis(redis_two_connections, 10)
+    redis = Redis(redis_two_connections)
 
     for instance in redis.instances:
         instance._pool = pool
@@ -205,7 +205,7 @@ def mock_redis_two_instances(redis_two_connections):
 @pytest.fixture
 def mock_redis_three_instances(redis_three_connections):
     pool = FakePool()
-    redis = Redis(redis_three_connections, 10)
+    redis = Redis(redis_three_connections)
 
     for instance in redis.instances:
         instance._pool = pool
@@ -219,7 +219,7 @@ class TestRedis:
         with patch("aioredlock.redis.Instance.__init__") as mock_instance:
             mock_instance.return_value = None
 
-            redis = Redis(redis_two_connections, 0.01)
+            redis = Redis(redis_two_connections)
 
             calls = [
                 call({'host': 'localhost', 'port': 6379}),
@@ -227,7 +227,6 @@ class TestRedis:
             ]
             mock_instance.assert_has_calls(calls)
             assert len(redis.instances) == 2
-            assert redis.lock_timeout == 0.01
 
     parametrize_methods = pytest.mark.parametrize("method_name, call_args", [
         ('set_lock', {'keys': ['resource'], 'args':['lock_id', 10000]}),
