@@ -54,7 +54,7 @@ class Aioredlock:
     def log(self):
         return logging.getLogger(__name__)
 
-    async def __auto_extend(self, lock):
+    async def _auto_extend(self, lock):
         """
         Tries to reset the lock's lifetime to lock_timeout every 0.6*lock_timeout automatically
         In case of fault the LockError exception will be raised
@@ -65,11 +65,11 @@ class Aioredlock:
         await asyncio.sleep(0.6 * self.internal_lock_timeout)
         try:
             await self.extend(lock)
-        except LockError:
+        except Exception:
             self.log.debug('Error in extending the lock "%s"',
                            lock.resource)
 
-        self._watchdogs[lock.resource] = asyncio.ensure_future(self.__auto_extend(lock))
+        self._watchdogs[lock.resource] = asyncio.ensure_future(self._auto_extend(lock))
 
     async def lock(self, resource, lock_timeout=None):
         """
@@ -134,7 +134,7 @@ class Aioredlock:
 
         lock = Lock(self, resource, lock_identifier, lock_timeout, valid=True)
         if lock_timeout is None:
-            self._watchdogs[lock.resource] = asyncio.ensure_future(self.__auto_extend(lock))
+            self._watchdogs[lock.resource] = asyncio.ensure_future(self._auto_extend(lock))
         self._locks[resource] = lock
 
         return lock

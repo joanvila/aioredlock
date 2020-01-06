@@ -28,7 +28,7 @@ def lock_manager_redis_patched():
             mock_redis.is_locked = CoroutineMock(return_value=False)
             mock_redis.clear_connections = CoroutineMock()
 
-            lock_manager = Aioredlock()
+            lock_manager = Aioredlock(internal_lock_timeout=1.0)
 
             yield lock_manager, mock_redis
 
@@ -319,3 +319,36 @@ class TestAioredlock:
 
             await lock_manager.destroy()
             mock_redis.clear_connections.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_auto_with_extend_failed(self):
+        with asynctest.patch("aioredlock.algorithm.Redis", CoroutineMock) as mock_redis:
+            mock_redis.set_lock = CoroutineMock(return_value=0.005)
+            mock_redis.unset_lock = CoroutineMock(return_value=0.005)
+            mock_redis.clear_connections = CoroutineMock()
+
+            lock_manager = Aioredlock(internal_lock_timeout=1.0)
+            lock = await lock_manager.lock("resource")
+            lock.valid = False
+            await real_sleep(lock_manager.internal_lock_timeout * 3)
+            calls = [call('resource', lock.id, lock_manager.internal_lock_timeout)]
+            mock_redis.set_lock.assert_has_calls(calls)
+
+    @pytest.mark.asyncio
+    async def test_unlock_with_watchdog_failed(self):
+        with asynctest.patch("aioredlock.algorithm.Redis", CoroutineMock) as mock_redis:
+            mock_redis.set_lock = CoroutineMock(return_value=0.005)
+            mock_redis.unset_lock = CoroutineMock(return_value=0.005)
+            mock_redis.clear_connections = CoroutineMock()
+            lock_manager = Aioredlock(internal_lock_timeout=1.0)
+
+            lock = await lock_manager.lock("resource")
+            await real_sleep(lock_manager.internal_lock_timeout)
+
+            tasks = asyncio.Task.all_tasks()
+            for index, task in enumerate(tasks):
+                if "_auto_extend" in str(task):
+                    task.set_exception(ValueError())
+
+            await lock_manager.unlock(lock)
+            assert lock.valid is False
