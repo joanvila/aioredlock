@@ -1,7 +1,19 @@
 # Change Log
 
 All notable changes to this project will be documented in this file.
+##0.4.0 - 2020-01-06
 
+### Added
+- Add watchdogs to extend lock's lifetime automatically
+
+### Changed
+- Aioredlock totally becomes a lock manager, it track locks' state.When Aioredlock is destroyed, it releases all locks it have
+- Remove ``lock_timeout`` and ``drift`` from Aioredlock's initialization parameter list and move them to ``Aioredlock.lock``
+- Add ``internal_lock_timeout`` as default lock_timeout for Aioredlock initialization
+- ``Aioredlock.lock(resource)`` is replaced by ``Aioredlock.lock(resource_name, lock_timeout)`` 
+- ``Aioredlock.extend(lock)`` is replaced by ``Aioredlock.extend(lock, lock_timeout)``
+- Remove lock_timeout from Redis' initialization parameter list
+ 
 ## 0.3.0 - 2019-01-15
 
 ### Added
