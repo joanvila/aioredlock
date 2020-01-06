@@ -33,6 +33,14 @@ class Aioredlock:
         if value < 1:
             raise ValueError("Retry count must be greater or equal 1.")
 
+    @internal_lock_timeout.validator
+    def _validate_internal_lock_timeout(self, attribute, value):
+        """
+        Validate if internal_lock_timeout is greater than 0
+        """
+        if value <= 0:
+            raise ValueError("Internal lock_timeout must be greater than 0 seconds.")
+
     @retry_delay_min.validator
     @retry_delay_max.validator
     def _validate_retry_delay(self, attribute, value):

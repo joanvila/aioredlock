@@ -36,6 +36,7 @@ def lock_manager_redis_patched():
 @pytest.mark.parametrize('method,exc_message', [
     ('_validate_retry_count', "Retry count must be greater or equal 1."),
     ('_validate_retry_delay', "Retry delay must be greater than 0 seconds."),
+    ('_validate_internal_lock_timeout', "Internal lock_timeout must be greater than 0 seconds.")
 ])
 def test_validator(method, exc_message):
     with pytest.raises(ValueError) as exc_info:
@@ -70,6 +71,7 @@ class TestAioredlock:
         'retry_count',
         'retry_delay_min',
         'retry_delay_max',
+        'internal_lock_timeout'
     ])
     @pytest.mark.parametrize('value,exc_type', [
         (-1, ValueError),
