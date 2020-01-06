@@ -10,8 +10,7 @@ async def lock_context():
         'redis://localhost:6379/1',
         'redis://localhost:6379/2',
         'redis://localhost:6379/3',
-    ],
-    )
+    ])
 
     if await lock_manager.is_locked("resource"):
         print('The resource is already acquired')

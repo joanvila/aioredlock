@@ -13,22 +13,17 @@ from aioredlock.redis import Redis
 
 @attr.s
 class Aioredlock:
-
     redis_connections = attr.ib(default=[{'host': 'localhost', 'port': 6379}])
-
-    # Proportional drift time to the length of the lock
-    # See https://redis.io/topics/distlock#is-the-algorithm-asynchronous for more info
 
     retry_count = attr.ib(default=3, converter=int)
     retry_delay_min = attr.ib(default=0.1, converter=float)
     retry_delay_max = attr.ib(default=0.3, converter=float)
-
-    # lifetime auto extend parameter
-    watchdogs = {}
-    internal_lock_timeout = 10.0
+    internal_lock_timeout = attr.ib(default=10.0, converter=float)
 
     def __attrs_post_init__(self):
         self.redis = Redis(self.redis_connections)
+        self._watchdogs = {}
+        self._locks = {}
 
     @retry_count.validator
     def _validate_retry_count(self, attribute, value):
@@ -59,12 +54,16 @@ class Aioredlock:
         :raises: LockError in case of fault
         """
 
-        await asyncio.sleep(1/3 * self.internal_lock_timeout)
-        await self.extend(lock)
-        self.watchdogs[lock.resource] = asyncio.ensure_future(self.__auto_extend(lock))
+        await asyncio.sleep(0.6 * self.internal_lock_timeout)
+        try:
+            await self.extend(lock)
+        except LockError:
+            self.log.debug('Error in extending the lock "%s"',
+                           lock.resource)
 
+        self._watchdogs[lock.resource] = asyncio.ensure_future(self.__auto_extend(lock))
 
-    async def lock(self, resource, lock_timeout=-1):
+    async def lock(self, resource, lock_timeout=None):
         """
         Tries to acquire de lock.
         If the lock is correctly acquired, the valid property of
@@ -72,15 +71,20 @@ class Aioredlock:
         In case of fault the LockError exception will be raised
 
         :param resource: The string identifier of the resource to lock
+        :param lock_timeout: Lock's lifetime
         :return: :class:`aioredlock.Lock`
         :raises: LockError in case of fault
         """
         lock_identifier = str(uuid.uuid4())
         error = RuntimeError('Retry count less then one')
 
-        lease_time = self.internal_lock_timeout if lock_timeout == -1 else lock_timeout
-        drift = lease_time * 0.01 + 0.002
+        lease_time = lock_timeout or self.internal_lock_timeout
+        if lease_time <= 0:
+            raise ValueError("Lock timeout must be greater than 0 seconds.")
 
+        # Proportional drift time to the length of the lock
+        # See https://redis.io/topics/distlock#is-the-algorithm-asynchronous for more info
+        drift = lease_time * 0.01 + 0.002
 
         try:
             # global try/except to catch CancelledError
@@ -121,30 +125,32 @@ class Aioredlock:
             raise
 
         lock = Lock(self, resource, lock_identifier, lock_timeout, valid=True)
-        if lock_timeout == -1:
-            self.watchdogs[lock.resource] = asyncio.ensure_future(self.__auto_extend(lock))
+        if lock_timeout is None:
+            self._watchdogs[lock.resource] = asyncio.ensure_future(self.__auto_extend(lock))
+        self._locks[resource] = lock
 
         return lock
 
-    async def extend(self, lock):
+    async def extend(self, lock, lock_timeout=None):
         """
         Tries to reset the lock's lifetime to lock_timeout
         In case of fault the LockError exception will be raised
 
         :param lock: :class:`aioredlock.Lock`
+        :param lock_timeout: extend lock's life time to lock_timeout
         :raises: RuntimeError if lock is not valid
         :raises: LockError in case of fault
         """
-
         self.log.debug('Extending lock "%s"', lock.resource)
 
         if not lock.valid:
             raise RuntimeError('Lock is not valid')
 
-        if lock.lock_timeout == -1:
-            await self.redis.set_lock(lock.resource, lock.id, self.internal_lock_timeout)
-        else:
-            await self.redis.set_lock(lock.resource, lock.id, lock.lock_timeout)
+        new_lease_time = lock_timeout or lock.lock_timeout or self.internal_lock_timeout
+        if new_lease_time <= 0:
+            raise ValueError("Lock timeout must be greater than 0 seconds.")
+
+        await self.redis.set_lock(lock.resource, lock.id, new_lease_time)
 
     async def unlock(self, lock):
         """
@@ -157,9 +163,19 @@ class Aioredlock:
         """
         self.log.debug('Releasing lock "%s"', lock.resource)
 
-        if self.watchdogs.get(lock.resource, None):
-            self.watchdogs[lock.resource].cancel()
-            self.watchdogs.pop(lock.resource)
+        if lock.resource in self._watchdogs:
+            self._watchdogs[lock.resource].cancel()
+
+            done, _ = await asyncio.wait([self._watchdogs[lock.resource]])
+            for fut in done:
+                try:
+                    await fut
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    self.log.exception(f"Can not  unlock {lock.resource}")
+
+            self._watchdogs.pop(lock.resource)
 
         await self.redis.unset_lock(lock.resource, lock.id)
         # raises LockError if can not unlock
@@ -188,12 +204,18 @@ class Aioredlock:
 
     async def destroy(self):
         """
-        cancel all watchdogs and Clear all the redis connections
+        cancel all _watchdogs, unlock all locks and Clear all the redis connections
         """
         self.log.debug('Destroying %s', repr(self))
 
-        for resource in self.watchdogs:
-            self.watchdogs[resource].cancel()
-        self.watchdogs = {}
+        for resource, lock in self._locks.items():
+            if lock.valid:
+                try:
+                    await self.unlock(lock)
+                except Exception:
+                    self.log.exception(f"Can not  unlock {resource}")
+
+        self._locks.clear()
+        self._watchdogs.clear()
 
         await self.redis.clear_connections()

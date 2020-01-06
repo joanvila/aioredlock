@@ -37,7 +37,6 @@ def lock_manager_redis_patched():
     ('_validate_retry_count', "Retry count must be greater or equal 1."),
     ('_validate_retry_delay', "Retry delay must be greater than 0 seconds."),
 ])
-
 def test_validator(method, exc_message):
     with pytest.raises(ValueError) as exc_info:
         getattr(Aioredlock, method)(None, None, -1)
@@ -98,6 +97,12 @@ class TestAioredlock:
         assert lock.resource == 'resource'
         assert lock.id == ANY
         assert lock.valid is True
+
+    @pytest.mark.asyncio
+    async def test_lock_with_invalid_param(self, lock_manager_redis_patched):
+        lock_manager, redis = lock_manager_redis_patched
+        with pytest.raises(ValueError):
+            await lock_manager.lock("resource", -1)
 
     @pytest.mark.asyncio
     async def test_lock_one_retry(self, lock_manager_redis_patched, locked_lock):
@@ -189,7 +194,6 @@ class TestAioredlock:
 
         async def mock_set_lock(*args, **kwargs):
             await real_sleep(1)
-            return 1.0
 
         redis.set_lock = CoroutineMock(side_effect=mock_set_lock)
 
@@ -225,6 +229,13 @@ class TestAioredlock:
             await lock_manager.extend(lock)
 
     @pytest.mark.asyncio
+    async def test_extend_with_invalid_param(self, lock_manager_redis_patched):
+        lock_manager, redis = lock_manager_redis_patched
+        lock = await lock_manager.lock("resource", 1.0)
+        with pytest.raises(ValueError):
+            await lock_manager.extend(lock, -1)
+
+    @pytest.mark.asyncio
     async def test_unlock(self, lock_manager_redis_patched, locked_lock):
         lock_manager, redis = lock_manager_redis_patched
 
@@ -235,7 +246,7 @@ class TestAioredlock:
             locked_lock.id
         )
         assert locked_lock.valid is False
-    '''
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize("resource_or_lock", [locked_lock(), locked_lock().resource])
     @pytest.mark.parametrize("locked", [True, False])
@@ -253,7 +264,7 @@ class TestAioredlock:
 
         assert res == locked
         redis.is_locked.assert_called_once_with(resource)
-    '''
+
     @pytest.mark.asyncio
     async def test_is_locked_type_error(self, lock_manager_redis_patched):
         lock_manager, redis = lock_manager_redis_patched
@@ -283,7 +294,9 @@ class TestAioredlock:
     @pytest.mark.asyncio
     async def test_destroy_lock_manager(self, lock_manager_redis_patched):
         lock_manager, redis = lock_manager_redis_patched
+        lock_manager.unlock = CoroutineMock(side_effect=LockError('Can not lock'))
 
+        await lock_manager.lock("resource", 1.0)
         await lock_manager.destroy()
 
         redis.clear_connections.assert_called_once_with()
@@ -293,16 +306,15 @@ class TestAioredlock:
         with asynctest.patch("aioredlock.algorithm.Redis", CoroutineMock) as mock_redis:
             mock_redis.set_lock = CoroutineMock(return_value=0.005)
             mock_redis.unset_lock = CoroutineMock(return_value=0.005)
-            mock_redis.is_locked = CoroutineMock(return_value=False)
             mock_redis.clear_connections = CoroutineMock()
 
-            lock_manager = Aioredlock()
-
+            lock_manager = Aioredlock(internal_lock_timeout=1)
             lock = await lock_manager.lock("resource")
 
             await real_sleep(lock_manager.internal_lock_timeout * 3)
 
-            calls = [call('resource', lock.id, 10.0) for _ in range(9)]
+            calls = [call('resource', lock.id, lock_manager.internal_lock_timeout)
+                     for _ in range(5)]
             mock_redis.set_lock.assert_has_calls(calls)
 
             await lock_manager.destroy()
