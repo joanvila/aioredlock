@@ -248,19 +248,17 @@ class TestAioredlock:
         assert locked_lock.valid is False
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("resource_or_lock", [locked_lock(), locked_lock().resource])
+    @pytest.mark.parametrize("by_resource", [True, False])
     @pytest.mark.parametrize("locked", [True, False])
-    async def test_is_locked(self, lock_manager_redis_patched, resource_or_lock,  locked):
+    async def test_is_locked(self, lock_manager_redis_patched, locked_lock, by_resource, locked):
         lock_manager, redis = lock_manager_redis_patched
         redis.is_locked.return_value = locked
 
-        res = await lock_manager.is_locked(resource_or_lock)
+        Lock.valid = locked
+        resource = locked_lock.resource
+        resource_or_lock = resource if by_resource else locked_lock
 
-        if isinstance(resource_or_lock, Lock):
-            Lock.valid = locked
-            resource = resource_or_lock.resource
-        else:
-            resource = resource_or_lock
+        res = await lock_manager.is_locked(resource_or_lock)
 
         assert res == locked
         redis.is_locked.assert_called_once_with(resource)
