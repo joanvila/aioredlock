@@ -86,9 +86,10 @@ class Aioredlock:
         lock_identifier = str(uuid.uuid4())
         error = RuntimeError('Retry count less then one')
 
-        lease_time = lock_timeout or self.internal_lock_timeout
-        if lease_time <= 0:
+        if lock_timeout is not None and lock_timeout <= 0:
             raise ValueError("Lock timeout must be greater than 0 seconds.")
+
+        lease_time = lock_timeout or self.internal_lock_timeout
 
         # Proportional drift time to the length of the lock
         # See https://redis.io/topics/distlock#is-the-algorithm-asynchronous for more info
@@ -153,10 +154,10 @@ class Aioredlock:
 
         if not lock.valid:
             raise RuntimeError('Lock is not valid')
+        if lock_timeout is not None and lock_timeout <= 0:
+            raise ValueError("Lock timeout must be greater than 0 seconds.")
 
         new_lease_time = lock_timeout or lock.lock_timeout or self.internal_lock_timeout
-        if new_lease_time <= 0:
-            raise ValueError("Lock timeout must be greater than 0 seconds.")
 
         await self.redis.set_lock(lock.resource, lock.id, new_lease_time)
 

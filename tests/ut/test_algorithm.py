@@ -321,7 +321,7 @@ class TestAioredlock:
             mock_redis.clear_connections.assert_called_once_with()
 
     @pytest.mark.asyncio
-    async def test_auto_with_extend_failed(self):
+    async def test_auto_extend_with_extend_failed(self):
         with asynctest.patch("aioredlock.algorithm.Redis", CoroutineMock) as mock_redis:
             mock_redis.set_lock = CoroutineMock(return_value=0.005)
             mock_redis.unset_lock = CoroutineMock(return_value=0.005)
@@ -348,7 +348,8 @@ class TestAioredlock:
             tasks = asyncio.Task.all_tasks()
             for index, task in enumerate(tasks):
                 if "_auto_extend" in str(task):
-                    task.set_exception(ValueError())
+                    auto_frame = task.get_stack()[-1]
+                    auto_frame.clear()
 
             await lock_manager.unlock(lock)
             assert lock.valid is False
