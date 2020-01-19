@@ -18,3 +18,6 @@ class Lock:
 
     async def extend(self):
         await self.lock_manager.extend(self)
+
+    async def release(self):
+        await self.lock_manager.unlock(self)
