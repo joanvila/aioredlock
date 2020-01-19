@@ -332,7 +332,7 @@ class TestAioredlock:
             lock = await lock_manager.lock("resource")
             await real_sleep(lock_manager.internal_lock_timeout)
 
-            tasks = asyncio.Task.all_tasks()
+            tasks = asyncio.all_tasks()
             for index, task in enumerate(tasks):
                 if "_auto_extend" in str(task):
                     auto_frame = task.get_stack()[-1]
