@@ -333,7 +333,7 @@ class TestAioredlock:
             lock = await lock_manager.lock("resource")
             await real_sleep(lock_manager.internal_lock_timeout)
 
-            if sys.version_info.major == 3 and sys.version_info.minor <= 5:
+            if sys.version_info.major == 3 and sys.version_info.minor <= 6:
                 tasks = asyncio.Task.all_tasks()
             else:
                 tasks = asyncio.all_tasks()
