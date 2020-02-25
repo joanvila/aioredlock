@@ -154,7 +154,7 @@ class Instance:
             self.log.debug('Lock "%s" is cancelled on %s',
                            resource, repr(self))
             raise
-        except Exception as exc:
+        except Exception:
             self.log.exception('Can not set lock "%s" on %s',
                                resource, repr(self))
             raise
@@ -187,7 +187,7 @@ class Instance:
             self.log.debug('Lock "%s" unset is cancelled on %s',
                            resource, repr(self))
             raise
-        except Exception as exc:
+        except Exception:
             self.log.exception('Can not unset lock "%s" on %s',
                                resource, repr(self))
             raise

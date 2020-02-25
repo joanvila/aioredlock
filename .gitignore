@@ -18,3 +18,8 @@ __pycache__/
 .tox
 .cache
 .pytest_cache
+
+# ide and dev stuff
+
+.idea
+venv
