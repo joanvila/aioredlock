@@ -1,7 +1,7 @@
 aioredlock
 ==========
 
-.. image:: https://github.com/joanvila/aioredlock/workflows/Python%20package/badge.svg
+.. image:: https://github.com/joanvila/aioredlock/workflows/Tests/badge.svg
   :target: https://travis-ci.org/joanvila/aioredlock
 
 .. image:: https://codecov.io/gh/joanvila/aioredlock/branch/master/graph/badge.svg
