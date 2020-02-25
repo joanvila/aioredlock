@@ -39,7 +39,7 @@ Usage
 
   # Try to acquire the lock:
   try:
-      lock = await lock_manager.lock("resource_name", lock_timeout=10)
+      lock = await lock_manager.lock("resource_name")
   except LockError:
       print('Lock not acquired')
       raise
@@ -49,7 +49,7 @@ Usage
   assert await lock_manager.is_locked("resource_name")
 
   # Extend lifetime of the lock:
-  await lock_manager.extend(lock, lock_timeout=10)
+  await lock_manager.extend(lock)
   # Raises LockError if the lock manager can not extend the lock lifetime
   # on more then half of the Redis instances.
 
@@ -84,6 +84,8 @@ How it works
 The Aioredlock constructor accepts the following optional parameters:
 
 - ``redis_connections``: A list of connections (dictionary of host and port and kwargs for ``aioredis.create_redis_pool()``, or tuple ``(host, port)``, or string Redis URI) where the Redis instances are running.  The default value is ``[{'host': 'localhost', 'port': 6379}]``.
+- ``lock_timeout``: An float (in seconds) representing lock validity period. The default value is ``10.0`` seconds.
+- ``drift``: An float for clock drift compensation. The default value is calculated by ``lock_timeout * 0.01 + 0.002`` seconds.
 - ``retry_count``: An integer representing number of maximum allowed retries to acquire the lock. The default value is ``3`` times.
 - ``retry_delay_min`` and ``retry_delay_max``: Float values representing waiting time (in seconds) before the next retry attempt. The default values are ``0.1`` and ``0.3``, respectively.
 
@@ -100,6 +102,7 @@ In order to clear all the connections with Redis, the lock_manager ``destroy`` m
 To-do
 -----
 
+* Expire the lock valid attribute according to the lock validity in a safe way if possible
 
 .. _redlock: https://redis.io/topics/distlock
 .. _Redis: https://redis.io

@@ -13,7 +13,7 @@ async def dummy_sleep(seconds):
 
 @pytest.fixture
 def locked_lock():
-    return Lock(None, "resource_name", 1, -1, True)
+    return Lock(None, "resource_name", 1, True)
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def lock_manager_redis_patched():
             mock_redis.is_locked = CoroutineMock(return_value=False)
             mock_redis.clear_connections = CoroutineMock()
 
-            lock_manager = Aioredlock(internal_lock_timeout=1.0)
+            lock_manager = Aioredlock(lock_timeout=1.0, drift=0.102)
 
             yield lock_manager, mock_redis
 

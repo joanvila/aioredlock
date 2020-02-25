@@ -7,7 +7,6 @@ class Lock:
     lock_manager = attr.ib()
     resource = attr.ib()
     id = attr.ib()
-    lock_timeout = attr.ib(default=10.0)
     valid = attr.ib(default=False)
 
     async def __aenter__(self):
