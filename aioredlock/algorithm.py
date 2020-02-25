@@ -108,7 +108,7 @@ class Aioredlock:
                 # break never reached
                 raise error
 
-        except Exception as exc:
+        except Exception:
             # cleanup in case of fault or cancellation will run in background
             async def cleanup():
                 self.log.debug('Cleaning up lock "%s"', resource)
