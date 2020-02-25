@@ -1,0 +1,45 @@
+name: Python package
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.5, 3.6, 3.7, 3.8]
+
+    services:
+      redis:
+        image: redis
+        ports:
+        - 6379:6379
+        options: --entrypoint redis-server
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    - name: Install package
+      run: |
+        python setup.py develop
+    - name: Check syntax
+      run: |
+        make syntax
+    - name: Unit tests
+      run: |
+        make ut
+    - name: Acceptance tests
+      run: |
+        make acceptance
+    - name: Code coverage
+      run: |
+        make coverage
