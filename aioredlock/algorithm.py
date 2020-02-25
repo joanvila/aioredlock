@@ -194,7 +194,7 @@ class Aioredlock:
                 except asyncio.CancelledError:
                     pass
                 except Exception:
-                    self.log.exception(f"Can not  unlock {lock.resource}")
+                    self.log.exception('Can not unlock "%s"', lock.resource)
 
             self._watchdogs.pop(lock.resource)
 
@@ -232,7 +232,7 @@ class Aioredlock:
                 try:
                     await self.unlock(lock)
                 except Exception:
-                    self.log.exception(f"Can not  unlock {resource}")
+                    self.log.exception('Can not unlock "%s"', resource)
 
         self._locks.clear()
         self._watchdogs.clear()
