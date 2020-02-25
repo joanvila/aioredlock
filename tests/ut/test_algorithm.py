@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from unittest.mock import ANY, call
 
 import asynctest
@@ -332,7 +333,10 @@ class TestAioredlock:
             lock = await lock_manager.lock("resource")
             await real_sleep(lock_manager.internal_lock_timeout)
 
-            tasks = asyncio.all_tasks()
+            if sys.version_info.major == 3 and sys.version_info.minor <= 5:
+                tasks = asyncio.Task.all_tasks()
+            else:
+                tasks = asyncio.all_tasks()
             for index, task in enumerate(tasks):
                 if "_auto_extend" in str(task):
                     auto_frame = task.get_stack()[-1]
