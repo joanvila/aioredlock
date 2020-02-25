@@ -212,31 +212,29 @@ class Instance:
 
 class Redis:
 
-    def __init__(self, redis_connections, lock_timeout):
+    def __init__(self, redis_connections):
 
         self.instances = []
         for connection in redis_connections:
             self.instances.append(Instance(connection))
 
-        self.lock_timeout = lock_timeout
-
     @property
     def log(self):
         return logging.getLogger(__name__)
 
-    async def set_lock(self, resource, lock_identifier):
+    async def set_lock(self, resource, lock_identifier, lock_timeout=10.0):
         """
         Tries to set the lock to all the redis instances
 
         :param resource: The resource string name to lock
         :param lock_identifier: The id of the lock. A unique string
+        :param lock_timeout: lock's lifetime
         :return float: The elapsed time that took to lock the instances
             in seconds
         :raises: LockError if the lock has not been set to at least (N/2 + 1)
             instances
         """
         start_time = time.time()
-        lock_timeout = self.lock_timeout
 
         successes = await asyncio.gather(*[
             i.set_lock(resource, lock_identifier, lock_timeout) for
