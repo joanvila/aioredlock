@@ -43,6 +43,9 @@ setup(
     packages=find_packages(),
 
     install_requires=['aioredis', 'attrs >= 17.4.0'],
-    setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'pytest-asyncio', 'pytest-mock', 'pytest-cov']
+    extras_require={
+        'test': ['pytest', 'pytest-asyncio', 'pytest-mock', 'pytest-cov', 'asynctest', 'flake8'],
+        'cicd': ['codecov'],
+        'package': ['bump2version', 'twine', 'wheel'],
+    },
 )

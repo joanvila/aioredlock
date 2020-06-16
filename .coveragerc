@@ -1,0 +1,12 @@
+[coverage:run]
+branch = true
+source = aioredlock/
+omit =
+    tests/*
+    setup.py
+
+[coverage:report]
+skip_covered = true
+
+[coverage:xml]
+output = coverage.xml

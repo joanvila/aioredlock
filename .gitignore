@@ -12,6 +12,7 @@ __pycache__/
 *.so
 *~
 .coverage
+coverage.xml
 
 # due to using tox and pytest
 
