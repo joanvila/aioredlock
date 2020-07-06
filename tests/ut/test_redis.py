@@ -7,6 +7,7 @@ from asynctest import CoroutineMock, patch
 
 from aioredlock.errors import LockError
 from aioredlock.redis import Instance, Redis
+from aioredlock.sentinel import Sentinel
 
 
 EVAL_OK = b'OK'
@@ -111,12 +112,37 @@ class TestInstance:
 
     @pytest.mark.asyncio
     async def test_connect_pool_aioredis_instance(self):
-        with patch('aioredlock.redis.Instance._create_redis_pool') as \
-                create_redis_pool:
-            redis_connection = await aioredis.create_redis_pool('redis://localhost')
+
+        def awaiter(self):
+            yield from []
+
+        with patch('aioredlock.redis.Instance._create_redis_pool') as create_redis_pool, \
+                patch.object(aioredis.Redis, '__await__', awaiter):
+            redis_connection = aioredis.Redis(
+                aioredis.ConnectionsPool(('127.0.0.1', 6379), minsize=1, maxsize=100),
+            )
             instance = Instance(redis_connection)
 
             await instance.connect()
+            assert not create_redis_pool.called
+
+    @pytest.mark.asyncio
+    async def test_connect_pool_aioredis_instance_with_sentinel(self):
+
+        def awaiter(self):
+            yield from []
+
+        with patch('aioredlock.redis.Instance._create_redis_pool') as create_redis_pool, \
+                patch.object(aioredis.Redis, '__await__', awaiter):
+            sentinel = Sentinel(('127.0.0.1', 26379), master='leader')
+            redis_connection = aioredis.Redis(
+                aioredis.ConnectionsPool(('127.0.0.1', 6379), minsize=1, maxsize=100),
+            )
+            with patch.object(sentinel, 'get_master', return_value=asyncio.Future()) as mock_redis:
+                mock_redis.return_value.set_result(redis_connection)
+                instance = Instance(sentinel)
+
+                await instance.connect()
             assert not create_redis_pool.called
 
     @pytest.fixture

@@ -7,6 +7,7 @@ from distutils.version import StrictVersion
 import aioredis
 
 from aioredlock.errors import LockError
+from aioredlock.sentinel import Sentinel
 
 
 class Instance:
@@ -44,6 +45,7 @@ class Instance:
                      'db': 0, 'password': 'pass'}
            all keys except host and port will be passed as kwargs to
            the aioredis.create_redis_pool();
+         * an aioredlock.redis.Sentinel object;
          * a Redis URI - "redis://host:6379/0?encoding=utf-8";
          * a (host, port) tuple - ('localhost', 6379);
          * or a unix domain socket path string - "/path/to/redis.sock".
@@ -86,8 +88,11 @@ class Instance:
         """
         Get an connection for the self instance
         """
+        address, redis_kwargs = (), {}
 
-        if isinstance(self.connection, dict):
+        if isinstance(self.connection, Sentinel):
+            self._pool = await self.connection.get_master()
+        elif isinstance(self.connection, dict):
             # a dict like {'host': 'localhost', 'port': 6379,
             #              'db': 0, 'password': 'pass'}
             kwargs = self.connection.copy()
@@ -103,11 +108,10 @@ class Instance:
             # a string "redis://host:6379/0?encoding=utf-8" or
             # a unix domain socket path "/path/to/redis.sock"
             address = self.connection
-            redis_kwargs = {}
 
         if self._pool is None:
             async with self._lock:
-                if self._pool is None:
+                if self._pool is None:  # pragma no cover
                     self.log.debug('Connecting %s', repr(self))
                     self._pool = await self._create_redis_pool(
                         address, **redis_kwargs,
@@ -119,7 +123,7 @@ class Instance:
         """
         Closes connection and resets pool
         """
-        if self._pool is not None and not isinstance(self.connection, aioredis.Redis):
+        if self._pool is not None and not isinstance(self.connection, aioredis.Redis):  # pragma no cover
             self._pool.close()
             await self._pool.wait_closed()
         self._pool = None
@@ -304,7 +308,7 @@ class Redis:
 
         self.log.debug('Clearing connection')
 
-        if self.instances:
+        if self.instances:  # pragma no cover
             await asyncio.gather(*(
                 i.close() for i in self.instances
             ))

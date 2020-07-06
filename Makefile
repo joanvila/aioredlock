@@ -4,13 +4,20 @@ syntax:
 	flake8
 
 ut:
-	coverage run -m pytest -sv tests/ut
+	coverage run -p -m pytest -v tests/ut
 
 acceptance:
-	pytest -sv tests/acceptance
+	coverage run -p -m pytest -v tests/acceptance
 
 all_tests: syntax ut acceptance coverage
 
 coverage:
+	coverage combine
 	coverage report
 	coverage xml
+
+clean:
+	find . -name \*.pyc -delete
+	find . -name __pycache__ -exec rmdir {} +
+	git checkout -- files/redis/sentinel.conf
+	coverage erase
