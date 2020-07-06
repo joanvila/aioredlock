@@ -59,8 +59,8 @@ class Instance:
         self._pool = None
         self._lock = asyncio.Lock()
 
-        self.set_lock_script = re.sub(r'^\s+', '', self.SET_LOCK_SCRIPT, flags=re.M).strip()
-        self.unset_lock_script = re.sub(r'^\s+', '', self.UNSET_LOCK_SCRIPT, flags=re.M).strip()
+        self.set_lock_script_sha1 = None
+        self.unset_lock_script_sha1 = None
 
     @property
     def log(self):
@@ -83,6 +83,19 @@ class Instance:
             return await aioredis.create_redis_pool(*args, **kwargs)
         else:  # pragma no cover
             return await aioredis.create_pool(*args, **kwargs)
+
+    async def _register_scripts(self, redis):
+        tasks = []
+        for script in [
+                self.SET_LOCK_SCRIPT,
+                self.UNSET_LOCK_SCRIPT,
+        ]:
+            script = re.sub(r'^\s+', '', script, flags=re.M).strip()
+            tasks.append(redis.script_load(script))
+        (
+            self.set_lock_script_sha1,
+            self.unset_lock_script_sha1
+        ) = (r.decode() for r in await asyncio.gather(*tasks))
 
     async def connect(self):
         """
@@ -118,6 +131,8 @@ class Instance:
                 if self._pool is None:
                     self.log.debug('Connecting %s', repr(self))
                     self._pool = await self._create_redis_pool(address, **redis_kwargs)
+                    with await self._pool as redis:
+                        await self._register_scripts(redis)
 
         return await self._pool
 
@@ -143,8 +158,8 @@ class Instance:
 
         try:
             with await self.connect() as redis:
-                await redis.eval(
-                    self.set_lock_script,
+                await redis.evalsha(
+                    self.set_lock_script_sha1,
                     keys=[resource],
                     args=[lock_identifier, lock_timeout_ms]
                 )
@@ -176,8 +191,8 @@ class Instance:
         """
         try:
             with await self.connect() as redis:
-                await redis.eval(
-                    self.unset_lock_script,
+                await redis.evalsha(
+                    self.unset_lock_script_sha1,
                     keys=[resource],
                     args=[lock_identifier]
                 )
