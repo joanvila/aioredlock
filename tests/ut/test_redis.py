@@ -36,6 +36,7 @@ class FakePool:
         self.evalsha = CoroutineMock(return_value=True)
         self.get = CoroutineMock(return_value=False)
         self.script_load = CoroutineMock(side_effect=self._fake_script_load)
+        self.script_exists = CoroutineMock(return_value=[1, 1])
 
     def __await__(self):
         yield
@@ -208,6 +209,24 @@ class TestInstance:
         pool = instance._pool
 
         await instance.set_lock('resource', 'lock_id', 10.0)
+
+        pool.evalsha.assert_called_once_with(
+            instance.set_lock_script_sha1,
+            keys=['resource'],
+            args=['lock_id', 10000]
+        )
+
+    @pytest.mark.asyncio
+    async def test_lock_without_scripts(self, fake_instance):
+        instance = fake_instance
+        await instance.connect()
+        pool = instance._pool
+        pool.script_exists = CoroutineMock(side_effect=[[0, 0], [1, 1]])
+
+        await instance.set_lock('resource', 'lock_id', 10.0)
+
+        assert pool.script_exists.call_count == 1
+        assert pool.script_load.call_count == 4
 
         pool.evalsha.assert_called_once_with(
             instance.set_lock_script_sha1,

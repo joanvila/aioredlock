@@ -84,6 +84,17 @@ class Instance:
         else:  # pragma no cover
             return await aioredis.create_pool(*args, **kwargs)
 
+    async def _check_scripts(self, redis):
+        '''
+        Check that the scripts are loaded into redis.
+        '''
+        scripts = await redis.script_exists(
+            self.set_lock_script_sha1,
+            self.unset_lock_script_sha1,
+        )
+        if not all(scripts):
+            await self._register_scripts(redis)
+
     async def _register_scripts(self, redis):
         tasks = []
         for script in [
@@ -158,6 +169,7 @@ class Instance:
 
         try:
             with await self.connect() as redis:
+                await self._check_scripts(redis)
                 await redis.evalsha(
                     self.set_lock_script_sha1,
                     keys=[resource],
@@ -191,6 +203,7 @@ class Instance:
         """
         try:
             with await self.connect() as redis:
+                await self._check_scripts(redis)
                 await redis.evalsha(
                     self.unset_lock_script_sha1,
                     keys=[resource],
