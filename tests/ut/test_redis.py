@@ -36,7 +36,6 @@ class FakePool:
         self.evalsha = CoroutineMock(return_value=True)
         self.get = CoroutineMock(return_value=False)
         self.script_load = CoroutineMock(side_effect=self._fake_script_load)
-        self.script_exists = CoroutineMock(return_value=[1, 1])
 
     def __await__(self):
         yield
@@ -217,21 +216,28 @@ class TestInstance:
         )
 
     @pytest.mark.asyncio
-    async def test_lock_without_scripts(self, fake_instance):
+    @pytest.mark.parametrize(
+        'func,args,expected_keys,expected_args',
+        (
+            ('set_lock', ('resource', 'lock_id', 10.0), ['resource'], ['lock_id', 10000]),
+            ('unset_lock', ('resource', 'lock_id'), ['resource'], ['lock_id']),
+        )
+    )
+    async def test_lock_without_scripts(self, fake_instance, func, args, expected_keys, expected_args):
         instance = fake_instance
         await instance.connect()
         pool = instance._pool
-        pool.script_exists = CoroutineMock(side_effect=[[0, 0], [1, 1]])
+        pool.evalsha.side_effect = [aioredis.errors.ReplyError('NOSCRIPT'), True]
 
-        await instance.set_lock('resource', 'lock_id', 10.0)
+        await getattr(instance, func)(*args)
 
-        assert pool.script_exists.call_count == 1
-        assert pool.script_load.call_count == 4
+        assert pool.evalsha.call_count == 2
+        assert pool.script_load.call_count == 2
 
-        pool.evalsha.assert_called_once_with(
-            instance.set_lock_script_sha1,
-            keys=['resource'],
-            args=['lock_id', 10000]
+        pool.evalsha.assert_called_with(
+            getattr(instance, '{0}_script_sha1'.format(func)),
+            keys=expected_keys,
+            args=expected_args,
         )
 
     @pytest.mark.asyncio

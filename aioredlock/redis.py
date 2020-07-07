@@ -84,17 +84,6 @@ class Instance:
         else:  # pragma no cover
             return await aioredis.create_pool(*args, **kwargs)
 
-    async def _check_scripts(self, redis):
-        '''
-        Check that the scripts are loaded into redis.
-        '''
-        scripts = await redis.script_exists(
-            self.set_lock_script_sha1,
-            self.unset_lock_script_sha1,
-        )
-        if not all(scripts):
-            await self._register_scripts(redis)
-
     async def _register_scripts(self, redis):
         tasks = []
         for script in [
@@ -156,7 +145,7 @@ class Instance:
             await self._pool.wait_closed()
         self._pool = None
 
-    async def set_lock(self, resource, lock_identifier, lock_timeout):
+    async def set_lock(self, resource, lock_identifier, lock_timeout, register_scripts=False):
         """
         Lock this instance and set lock expiration time to lock_timeout
         :param resource: redis key to set
@@ -169,13 +158,16 @@ class Instance:
 
         try:
             with await self.connect() as redis:
-                await self._check_scripts(redis)
+                if register_scripts is True:
+                    self._register_scripts(redis)
                 await redis.evalsha(
                     self.set_lock_script_sha1,
                     keys=[resource],
                     args=[lock_identifier, lock_timeout_ms]
                 )
         except aioredis.errors.ReplyError as exc:  # script fault
+            if exc.args[0].startswith('NOSCRIPT'):
+                return await self.set_lock(resource, lock_identifier, lock_timeout, register_scripts=True)
             self.log.debug('Can not set lock "%s" on %s',
                            resource, repr(self))
             raise LockError('Can not set lock') from exc
@@ -194,7 +186,7 @@ class Instance:
         else:
             self.log.debug('Lock "%s" is set on %s', resource, repr(self))
 
-    async def unset_lock(self, resource, lock_identifier):
+    async def unset_lock(self, resource, lock_identifier, register_scripts=False):
         """
         Unlock this instance
         :param resource: redis key to set
@@ -203,13 +195,16 @@ class Instance:
         """
         try:
             with await self.connect() as redis:
-                await self._check_scripts(redis)
+                if register_scripts is True:
+                    self._register_scripts(redis)
                 await redis.evalsha(
                     self.unset_lock_script_sha1,
                     keys=[resource],
                     args=[lock_identifier]
                 )
         except aioredis.errors.ReplyError as exc:  # script fault
+            if exc.args[0].startswith('NOSCRIPT'):
+                return await self.unset_lock(resource, lock_identifier, register_scripts=True)
             self.log.debug('Can not unset lock "%s" on %s',
                            resource, repr(self))
             raise LockError('Can not unset lock') from exc
