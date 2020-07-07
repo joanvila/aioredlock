@@ -238,3 +238,25 @@ class Aioredlock:
         self._watchdogs.clear()
 
         await self.redis.clear_connections()
+
+    async def iter_active_locks(self):
+        """
+        Return active locks one by one.
+        """
+        for lock in (lock for lock in self._locks.values() if lock.valid is True):
+            if await self.is_locked(lock):
+                yield lock
+
+    async def get_active_locks(self):
+        """
+        Return all stored locks that are valid.
+
+        .. note::
+            This function is only really useful in learning if there are no
+            active locks. It is possible that by the time the a lock is
+            returned from this function that it is no longer active.
+        """
+        ret = []
+        async for lock in self.iter_active_locks():
+            ret.append(lock)
+        return ret
