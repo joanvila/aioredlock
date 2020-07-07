@@ -1,3 +1,5 @@
+import re
+import ssl
 import urllib.parse
 
 import aioredis.sentinel
@@ -12,7 +14,7 @@ class SentinelConfigError(Exception):
 
 class Sentinel:
 
-    def __init__(self, connection, master=None, password=None, db=None, ssl=None):
+    def __init__(self, connection, master=None, password=None, db=None, ssl_context=None):
         '''
         The connection address can be one of the following:
          * a dict - {'host': 'localhost', 'port': 6379}
@@ -42,23 +44,28 @@ class Sentinel:
         but also specified as the master kwarg, the master kwarg will be used
         instead.
         '''
-        address, kwargs = (), {'ssl': ssl}
+        address, kwargs = (), {}
         if isinstance(connection, dict):
             kwargs.update(connection)
             address = [(kwargs.pop('host'), kwargs.pop('port', 26379))]
-        elif isinstance(connection, str) and connection.startswith('redis://'):
+        elif isinstance(connection, str) and re.match(r'^rediss?://.*\:\d+/\d\??.*$', connection):
             url = urllib.parse.urlparse(connection)
-            address = [(url.hostname, url.port)]
+            query = {key: value[0] for key, value in urllib.parse.parse_qs(url.query).items()}
+            address = [(url.hostname, url.port or 6379)]
             dbnum = url.path.strip('/')
 
-            if dbnum.isdigit():
-                kwargs['db'] = int(dbnum)
-            else:
-                kwargs['db'] = 0
+            if url.scheme == 'rediss':
+                kwargs['ssl'] = ssl.create_default_context()
+                verify_mode = query.pop('ssl_cert_reqs', None)
+                if verify_mode is not None and hasattr(ssl, verify_mode.upper()):
+                    if verify_mode == 'CERT_NONE':
+                        kwargs['ssl'].check_hostname = False
+                    kwargs['ssl'].verify_mode = getattr(ssl, verify_mode.upper())
 
+            kwargs['db'] = int(dbnum) if dbnum.isdigit() else 0
             kwargs['password'] = url.password
+            kwargs.update(query)
 
-            kwargs.update({key: value[0] for key, value in urllib.parse.parse_qs(url.query).items()})
         elif isinstance(connection, tuple):
             address = [connection]
         elif isinstance(connection, list):
@@ -70,6 +77,8 @@ class Sentinel:
             kwargs['db'] = db
         if password is not None:
             kwargs['password'] = password
+        if ssl_context is not None:
+            kwargs['ssl'] = ssl_context
 
         self.master = kwargs.pop('master', None)
         if master:
@@ -77,6 +86,9 @@ class Sentinel:
 
         if self.master is None:
             raise SentinelConfigError('Master name required for sentinel to be configured')
+
+        kwargs['minsize'] = 1 if 'minsize' not in kwargs else int(kwargs['minsize'])
+        kwargs['maxsize'] = 100 if 'maxsize' not in kwargs else int(kwargs['maxsize'])
 
         self.connection = address
         self.redis_kwargs = kwargs

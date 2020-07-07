@@ -110,12 +110,14 @@ class Instance:
             address = self.connection
 
         if self._pool is None:
+            if 'minsize' not in redis_kwargs:
+                redis_kwargs['minsize'] = 1
+            if 'maxsize' not in redis_kwargs:
+                redis_kwargs['maxsize'] = 100
             async with self._lock:
-                if self._pool is None:  # pragma no cover
+                if self._pool is None:
                     self.log.debug('Connecting %s', repr(self))
-                    self._pool = await self._create_redis_pool(
-                        address, **redis_kwargs,
-                        minsize=1, maxsize=100)
+                    self._pool = await self._create_redis_pool(address, **redis_kwargs)
 
         return await self._pool
 
@@ -123,7 +125,7 @@ class Instance:
         """
         Closes connection and resets pool
         """
-        if self._pool is not None and not isinstance(self.connection, aioredis.Redis):  # pragma no cover
+        if self._pool is not None and not isinstance(self.connection, aioredis.Redis):
             self._pool.close()
             await self._pool.wait_closed()
         self._pool = None

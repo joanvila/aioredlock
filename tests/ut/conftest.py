@@ -1,4 +1,6 @@
+import ssl
 import uuid
+import unittest.mock
 
 import asynctest
 import pytest
@@ -47,3 +49,10 @@ def aioredlock_patched():
             mock_aioredlock.destroy = CoroutineMock()
 
             yield mock_aioredlock
+
+
+@pytest.fixture
+def ssl_context():
+    context = ssl.create_default_context()
+    with unittest.mock.patch('ssl.create_default_context', return_value=context):
+        yield context

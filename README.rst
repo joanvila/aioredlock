@@ -30,7 +30,8 @@ Usage
     {'host': 'localhost', 'port': 6379, 'db': 1},
     'redis://localhost:6379/2',
     Sentinel(('localhost', 26379), master='leader', db=3),
-    Sentinel('redis://:insecure@localhost:26379/4?master=leader&encoding=utf-8'),
+    Sentinel('redis://localhost:26379/4?master=leader&encoding=utf-8'),
+    Sentinel('rediss://:password@localhost:26379/5?master=leader&encoding=utf-8&ssl_cert_reqs=CERT_NONE'),
   ]
 
   # Create a lock manager:
