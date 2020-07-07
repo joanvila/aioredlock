@@ -22,13 +22,15 @@ Usage
 -----
 .. code-block:: python
 
-  from aioredlock import Aioredlock, LockError
+  from aioredlock import Aioredlock, LockError, Sentinel
 
   # Define a list of connections to your Redis instances:
   redis_instances = [
     ('localhost', 6379),
     {'host': 'localhost', 'port': 6379, 'db': 1},
     'redis://localhost:6379/2',
+    Sentinel(('localhost', 26379), master='leader', db=3),
+    Sentinel('redis://:insecure@localhost:26379/4?master=leader&encoding=utf-8'),
   ]
 
   # Create a lock manager:
