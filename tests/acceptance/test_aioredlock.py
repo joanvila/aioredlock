@@ -1,8 +1,8 @@
 import asyncio
+import unittest.mock
 import uuid
 
 import aioredis
-import asynctest
 import pytest
 
 from aioredlock import Aioredlock, LockError
@@ -170,7 +170,7 @@ class TestAioredlock:
         # resource key occupied by garbage
         # but just before second attempt patched asyncio.sleep() function
         # will clean up garbage key to let lock be acquired
-        with asynctest.patch("asyncio.sleep", fake_sleep):
+        with unittest.mock.patch("asyncio.sleep", fake_sleep):
             lock = await lock_manager.lock(resource)
         assert lock.valid is True
 

@@ -1,10 +1,9 @@
 import asyncio
 import hashlib
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
 import aioredis
 import pytest
-from asynctest import CoroutineMock, patch
 
 from aioredlock.errors import LockError
 from aioredlock.redis import Instance, Redis
@@ -33,9 +32,11 @@ class FakePool:
 
         self.script_cache = {}
 
-        self.evalsha = CoroutineMock(return_value=True)
-        self.get = CoroutineMock(return_value=False)
-        self.script_load = CoroutineMock(side_effect=self._fake_script_load)
+        self.evalsha = MagicMock(return_value=asyncio.Future())
+        self.evalsha.return_value.set_result(True)
+        self.get = MagicMock(return_value=asyncio.Future())
+        self.get.return_value.set_result(False)
+        self.script_load = MagicMock(side_effect=self._fake_script_load)
 
     def __await__(self):
         yield
@@ -65,7 +66,7 @@ class FakePool:
 def fake_create_redis_pool(fake_pool):
     """
     Original Redis pool have magick method __await__ to create exclusive
-    connection. CoroutineMock sees this method and thinks that Redis pool
+    connection. MagicMock sees this method and thinks that Redis pool
     instance is awaitable and tries to await it.
     To avoit this behavior we are using this constructor with Mock.side_effect
     instead of Mock.return_value.
@@ -223,11 +224,11 @@ class TestInstance:
             ('unset_lock', ('resource', 'lock_id'), ['resource'], ['lock_id']),
         )
     )
-    async def test_lock_without_scripts(self, fake_instance, func, args, expected_keys, expected_args):
+    async def test_lock_without_scripts(self, fake_coro, fake_instance, func, args, expected_keys, expected_args):
         instance = fake_instance
         await instance.connect()
         pool = instance._pool
-        pool.evalsha.side_effect = [aioredis.errors.ReplyError('NOSCRIPT'), True]
+        pool.evalsha.side_effect = [aioredis.errors.ReplyError('NOSCRIPT'), fake_coro(True)]
 
         await getattr(instance, func)(*args)
 
@@ -264,7 +265,8 @@ class TestInstance:
         await instance.connect()
         pool = instance._pool
 
-        pool.get.return_value = get_return_value
+        pool.get.return_value = asyncio.Future()
+        pool.get.return_value.set_result(get_return_value)
 
         res = await instance.is_locked('resource')
 
@@ -356,7 +358,8 @@ class TestRedis:
     async def test_is_locked(self, mock_redis_two_instances, get_return_value, locked):
         redis, pool = mock_redis_two_instances
 
-        pool.get.return_value = get_return_value
+        pool.get.return_value = asyncio.Future()
+        pool.get.return_value.set_result(get_return_value)
 
         res = await redis.is_locked('resource')
 
@@ -367,11 +370,11 @@ class TestRedis:
     @pytest.mark.asyncio
     @parametrize_methods
     async def test_lock_one_of_two_instances_failed(
-            self, mock_redis_two_instances,
+            self, fake_coro, mock_redis_two_instances,
             method_name, call_args
     ):
         redis, pool = mock_redis_two_instances
-        pool.evalsha = CoroutineMock(side_effect=[EVAL_ERROR, EVAL_OK])
+        pool.evalsha = MagicMock(side_effect=[EVAL_ERROR, EVAL_OK])
 
         method = getattr(redis, method_name)
         script_sha1 = getattr(redis.instances[0],
@@ -395,13 +398,15 @@ class TestRedis:
     @parametrize_methods
     async def test_three_instances_combination(
             self,
+            fake_coro,
             mock_redis_three_instances,
             redis_result,
             success,
             method_name, call_args
     ):
         redis, pool = mock_redis_three_instances
-        pool.evalsha = CoroutineMock(side_effect=redis_result)
+        redis_result = [fake_coro(result) if isinstance(result, bytes) else result for result in redis_result]
+        pool.evalsha = MagicMock(side_effect=redis_result)
 
         method = getattr(redis, method_name)
         script_sha1 = getattr(redis.instances[0],
@@ -420,9 +425,17 @@ class TestRedis:
     async def test_clear_connections(self, mock_redis_two_instances):
         redis, pool = mock_redis_two_instances
         pool.close = MagicMock()
-        pool.wait_closed = CoroutineMock()
+        pool.wait_closed = MagicMock(return_value=asyncio.Future())
+        pool.wait_closed.return_value.set_result(True)
 
         await redis.clear_connections()
 
         pool.close.assert_has_calls([call(), call()])
         pool.wait_closed.assert_has_calls([call(), call()])
+
+        pool.close = MagicMock()
+        pool.wait_closed = MagicMock(return_value=asyncio.Future())
+
+        await redis.clear_connections()
+
+        assert pool.close.called is False
