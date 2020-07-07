@@ -333,7 +333,8 @@ class Redis:
 
         self.log.debug('Clearing connection')
 
-        if self.instances:  # pragma no cover
-            await asyncio.gather(*(
-                i.close() for i in self.instances
-            ))
+        if self.instances:
+            coros = []
+            while self.instances:
+                coros.append(self.instances.pop().close())
+            await asyncio.gather(*(coros))

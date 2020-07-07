@@ -1,10 +1,10 @@
+import asyncio
 import ssl
 import uuid
-import unittest.mock
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
-import asynctest
 import pytest
-from asynctest import CoroutineMock, patch
 
 from aioredlock import Aioredlock, Lock
 
@@ -31,39 +31,51 @@ def unlocked_lock(lock_manager_redis_patched):
 
 @pytest.fixture
 def lock_manager_redis_patched():
-    with asynctest.patch("aioredlock.algorithm.Redis", CoroutineMock) as mock_redis:
-        with patch("asyncio.sleep", dummy_sleep):
-            mock_redis.set_lock = CoroutineMock(return_value=0.005)
-            mock_redis.unset_lock = CoroutineMock(return_value=0.005)
-            mock_redis.is_locked = CoroutineMock(return_value=False)
-            mock_redis.clear_connections = CoroutineMock()
+    with patch("aioredlock.algorithm.Redis") as mock_redis, \
+            patch("asyncio.sleep", dummy_sleep):
+        mock_redis.set_lock.return_value = asyncio.Future()
+        mock_redis.set_lock.return_value.set_result(0.005)
+        mock_redis.unset_lock.return_value = asyncio.Future()
+        mock_redis.unset_lock.return_value.set_result(0.005)
+        mock_redis.is_locked.return_value = asyncio.Future()
+        mock_redis.is_locked.return_value.set_result(False)
+        mock_redis.clear_connections.return_value = asyncio.Future()
+        mock_redis.clear_connections.return_value.set_result(MagicMock())
 
-            lock_manager = Aioredlock(internal_lock_timeout=1.0)
+        lock_manager = Aioredlock(internal_lock_timeout=1.0)
+        lock_manager.redis = mock_redis
 
-            yield lock_manager, mock_redis
+        yield lock_manager, mock_redis
 
 
 @pytest.fixture
 def aioredlock_patched():
-    with asynctest.patch("aioredlock.algorithm.Aioredlock", CoroutineMock) \
-            as mock_aioredlock:
-        with patch("asyncio.sleep", dummy_sleep):
+    with patch("aioredlock.algorithm.Aioredlock", MagicMock) as mock_aioredlock, \
+            patch("asyncio.sleep", dummy_sleep):
 
-            async def dummy_lock(resource):
-                lock_identifier = str(uuid.uuid4())
-                return Lock(mock_aioredlock, resource,
-                            lock_identifier, valid=True)
+        async def dummy_lock(resource):
+            lock_identifier = str(uuid.uuid4())
+            return Lock(mock_aioredlock, resource,
+                        lock_identifier, valid=True)
 
-            mock_aioredlock.lock = CoroutineMock(side_effect=dummy_lock)
-            mock_aioredlock.extend = CoroutineMock()
-            mock_aioredlock.unlock = CoroutineMock()
-            mock_aioredlock.destroy = CoroutineMock()
+        mock_aioredlock.lock = MagicMock(side_effect=dummy_lock)
+        mock_aioredlock.extend = MagicMock(return_value=asyncio.Future())
+        mock_aioredlock.extend.return_value.set_result(MagicMock())
+        mock_aioredlock.unlock = MagicMock(return_value=asyncio.Future())
+        mock_aioredlock.unlock.return_value.set_result(MagicMock())
 
-            yield mock_aioredlock
+        yield mock_aioredlock
 
 
 @pytest.fixture
 def ssl_context():
     context = ssl.create_default_context()
-    with unittest.mock.patch('ssl.create_default_context', return_value=context):
+    with patch('ssl.create_default_context', return_value=context):
         yield context
+
+
+@pytest.fixture
+def fake_coro():
+    async def func(thing):
+        return thing
+    return func
