@@ -239,15 +239,6 @@ class Aioredlock:
 
         await self.redis.clear_connections()
 
-    async def iter_active_locks(self):
-        """
-        Return active locks one by one.
-        """
-        return (
-            lock for lock in self._locks.values()
-            if lock.valid is True and await lock.is_locked()
-        )
-
     async def get_active_locks(self):
         """
         Return all stored locks that are valid.
@@ -258,6 +249,7 @@ class Aioredlock:
             returned from this function that it is no longer active.
         """
         ret = []
-        async for lock in self.iter_active_locks():
-            ret.append(lock)
+        for lock in self._locks.values():
+            if lock.valid is True and await lock.is_locked():
+                ret.append(lock)
         return ret
