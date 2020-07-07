@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.0 - 2020-07-07
+
+### Added
+- Allow using Sentinels to handle redis connections
+- Added a function on a lock manager to return check and return a list of all active locks
+
+### Changed
+- Reverted back to using EVALSHA so that the scripts do not need to be uploaded for every command.
+- Instead, if a script is not on the server for EVALSHA, then the exception is caught, the scripts are reuploaded, and the set is tried again.
+
 ## 0.4.0 - 2020-01-08
 
 ### Added
