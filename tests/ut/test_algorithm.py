@@ -344,3 +344,13 @@ class TestAioredlock:
 
             await lock_manager.unlock(lock)
             assert lock.valid is False
+
+    @pytest.mark.asyncio
+    async def test_get_active_locks(self, lock_manager_redis_patched, locked_lock, unlocked_lock):
+        lock_manager, redis = lock_manager_redis_patched
+        redis.is_locked.return_value = True
+
+        locks = await lock_manager.get_active_locks()
+
+        assert locked_lock in locks
+        assert unlocked_lock not in locks
