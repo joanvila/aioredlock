@@ -243,12 +243,10 @@ class Aioredlock:
         """
         Return active locks one by one.
         """
-        locks = (
+        return (
             lock for lock in self._locks.values()
             if lock.valid is True and await lock.is_locked()
         )
-        async for lock in locks:
-            yield lock
 
     async def get_active_locks(self):
         """
