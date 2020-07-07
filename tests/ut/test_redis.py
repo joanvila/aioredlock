@@ -232,7 +232,7 @@ class TestInstance:
         await getattr(instance, func)(*args)
 
         assert pool.evalsha.call_count == 2
-        assert pool.script_load.call_count == 2
+        assert pool.script_load.call_count == 4
 
         pool.evalsha.assert_called_with(
             getattr(instance, '{0}_script_sha1'.format(func)),

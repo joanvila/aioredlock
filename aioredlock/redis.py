@@ -159,7 +159,7 @@ class Instance:
         try:
             with await self.connect() as redis:
                 if register_scripts is True:
-                    self._register_scripts(redis)
+                    await self._register_scripts(redis)
                 await redis.evalsha(
                     self.set_lock_script_sha1,
                     keys=[resource],
@@ -196,7 +196,7 @@ class Instance:
         try:
             with await self.connect() as redis:
                 if register_scripts is True:
-                    self._register_scripts(redis)
+                    await self._register_scripts(redis)
                 await redis.evalsha(
                     self.unset_lock_script_sha1,
                     keys=[resource],

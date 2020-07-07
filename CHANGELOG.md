@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 0.5.0 - 2020-07-07
+## 0.5.1 - 2020-07-07
 
 ### Added
 - Allow using Sentinels to handle redis connections
