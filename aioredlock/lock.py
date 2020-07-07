@@ -21,3 +21,6 @@ class Lock:
 
     async def release(self):
         await self.lock_manager.unlock(self)
+
+    async def is_locked(self):
+        return await self.lock_manager.is_locked(self)

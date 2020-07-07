@@ -13,15 +13,17 @@ async def dummy_sleep(seconds):
 
 @pytest.fixture
 def locked_lock(lock_manager_redis_patched):
-    lock = Lock(None, "resource_name", 1, -1, True)
-    lock_manager_redis_patched[0]._locks[lock.resource] = lock
+    lock_manager, _ = lock_manager_redis_patched
+    lock = Lock(lock_manager, "resource_name", 1, -1, True)
+    lock_manager._locks[lock.resource] = lock
     return lock
 
 
 @pytest.fixture
 def unlocked_lock(lock_manager_redis_patched):
-    lock = Lock(None, "other_resource_name", 1, -1, True)
-    lock_manager_redis_patched[0]._locks[lock.resource] = lock
+    lock_manager, _ = lock_manager_redis_patched
+    lock = Lock(lock_manager, "other_resource_name", 1, -1, False)
+    lock_manager._locks[lock.resource] = lock
     return lock
 
 

@@ -348,7 +348,7 @@ class TestAioredlock:
     @pytest.mark.asyncio
     async def test_get_active_locks(self, lock_manager_redis_patched, locked_lock, unlocked_lock):
         lock_manager, redis = lock_manager_redis_patched
-        redis.is_locked.side_effect = [True, False]
+        redis.is_locked.return_value = True
 
         locks = await lock_manager.get_active_locks()
 
