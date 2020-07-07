@@ -97,6 +97,25 @@ class TestInstance:
             assert instance._pool is fake_pool
 
     @pytest.mark.asyncio
+    async def test_connect_pool_not_created_with_minsize_and_maxsize(self):
+        connection = {'host': 'localhost', 'port': 6379, 'db': 0, 'password': 'pass', 'minsize': 2, 'maxsize': 5}
+        address = ('localhost', 6379)
+        redis_kwargs = {'db': 0, 'password': 'pass'}
+        with patch('aioredlock.redis.Instance._create_redis_pool') as \
+                create_redis_pool:
+
+            fake_pool = FakePool()
+            create_redis_pool.side_effect = fake_create_redis_pool(fake_pool)
+            instance = Instance(connection)
+
+            assert instance._pool is None
+            pool = await instance.connect()
+
+            create_redis_pool.assert_called_once_with(address, **redis_kwargs, minsize=2, maxsize=5)
+            assert pool is fake_pool
+            assert instance._pool is fake_pool
+
+    @pytest.mark.asyncio
     async def test_connect_pool_already_created(self):
 
         with patch('aioredlock.redis.Instance._create_redis_pool') as \
