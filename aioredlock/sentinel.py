@@ -37,6 +37,9 @@ class Sentinel:
         :param master: The name of the master to connect to via the sentinel
         :param password: The password to use to connect to the redis master
         :param db: The db to use on the redis master
+        :param ssl_context: The ssl context to assign to the redis connection.
+            If ssl_context is ``True``, the default ssl context in python will be assigned, otherwise
+            an ssl context must be provided.
 
         Explicitly specified parameters overwrite implicit options in the ``connection`` variable.
 
@@ -48,7 +51,7 @@ class Sentinel:
         if isinstance(connection, dict):
             kwargs.update(connection)
             address = [(kwargs.pop('host'), kwargs.pop('port', 26379))]
-        elif isinstance(connection, str) and re.match(r'^rediss?://.*\:\d+/\d\??.*$', connection):
+        elif isinstance(connection, str) and re.match(r'^rediss?://.*\:\d+/\d?\??.*$', connection):
             url = urllib.parse.urlparse(connection)
             query = {key: value[0] for key, value in urllib.parse.parse_qs(url.query).items()}
             address = [(url.hostname, url.port or 6379)]
@@ -77,7 +80,9 @@ class Sentinel:
             kwargs['db'] = db
         if password is not None:
             kwargs['password'] = password
-        if ssl_context is not None:
+        if ssl_context is True:
+            kwargs['ssl'] = ssl.create_default_context()
+        elif ssl_context is not None:
             kwargs['ssl'] = ssl_context
 
         self.master = kwargs.pop('master', None)
