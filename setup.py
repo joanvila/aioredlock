@@ -42,6 +42,7 @@ setup(
 
     packages=find_packages(),
 
+    python_requires='>=3.5',
     install_requires=['aioredis', 'attrs >= 17.4.0'],
     extras_require={
         'test': ['pytest', 'pytest-asyncio', 'pytest-mock', 'pytest-cov', 'asynctest', 'flake8', 'docker'],
