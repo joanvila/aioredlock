@@ -37,6 +37,8 @@ class FakePool:
         self.get = MagicMock(return_value=asyncio.Future())
         self.get.return_value.set_result(False)
         self.script_load = MagicMock(side_effect=self._fake_script_load)
+        self.close = MagicMock(return_value=asyncio.Future())
+        self.close.return_value.set_result(True)
 
     def __await__(self):
         yield
@@ -215,6 +217,32 @@ class TestInstance:
             keys=['resource'],
             args=['lock_id', 10000]
         )
+
+    @pytest.mark.asyncio
+    async def test_lock_sleep(self, fake_instance, event_loop):
+        instance = fake_instance
+
+        async def hold_lock(instance):
+            async with instance._lock:
+                await asyncio.sleep(.1)
+                instance._pool = FakePool()
+
+        event_loop.create_task(hold_lock(instance))
+        await asyncio.sleep(.1)
+        await instance.connect()
+        pool = instance._pool
+
+        await instance.set_lock('resource', 'lock_id', 10.0)
+
+        pool.evalsha.assert_called_once_with(
+            instance.set_lock_script_sha1,
+            keys=['resource'],
+            args=['lock_id', 10000]
+        )
+
+        instance._pool = None
+        await instance.close()
+        assert pool.close.called is False
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

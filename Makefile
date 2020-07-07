@@ -19,5 +19,6 @@ coverage:
 clean:
 	find . -name \*.pyc -delete
 	find . -name __pycache__ -exec rmdir {} +
+	rm -rf htmlcov/ aioredlock.egg-info/ dist/ build/ .pytest_cache/ coverage.xml
 	git checkout -- files/redis/sentinel.conf
 	coverage erase

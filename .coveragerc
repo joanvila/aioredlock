@@ -6,7 +6,6 @@ omit =
     setup.py
 
 [coverage:report]
-skip_covered = true
 
 [coverage:xml]
 output = coverage.xml
