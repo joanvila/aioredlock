@@ -48,8 +48,9 @@ setup(
     python_requires='>=3.5',
     install_requires=['aioredis', 'attrs >= 17.4.0'],
     extras_require={
-        'test': ['pytest', 'pytest-asyncio', 'pytest-mock', 'pytest-cov', 'flake8', 'docker'],
+        'test': ['pytest', 'pytest-asyncio', 'pytest-mock', 'pytest-cov', 'flake8'],
         'cicd': ['codecov'],
         'package': ['bump2version', 'twine', 'wheel'],
+        'examples': ['aiodocker'],
     },
 )
