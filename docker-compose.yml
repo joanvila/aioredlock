@@ -2,14 +2,12 @@ version: '3.8'
 
 services:
   leader:
-    container_name: leader
     image: redis
     ports:
     - 6379
     networks:
     - backend
   follower:
-    container_name: follower
     image: redis
     ports:
     - 6379
@@ -17,7 +15,6 @@ services:
     - backend
     command: ["--replicaof", "leader", "6379"]
   sentinel:
-    container_name: sentinel
     image: redis
     ports:
     - 26379

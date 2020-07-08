@@ -131,8 +131,10 @@ class Instance:
                 if self._pool is None:
                     self.log.debug('Connecting %s', repr(self))
                     self._pool = await self._create_redis_pool(address, **redis_kwargs)
-                    with await self._pool as redis:
-                        await self._register_scripts(redis)
+
+        if self.set_lock_script_sha1 is None or self.unset_lock_script_sha1 is None:
+            with await self._pool as redis:
+                await self._register_scripts(redis)
 
         return await self._pool
 
