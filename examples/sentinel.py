@@ -55,10 +55,10 @@ async def lock_context():
     sentinel_ip = await get_container_ip('aioredlock_sentinel_1')
 
     lock_manager = Aioredlock([
-        Sentinel(f'redis://{sentinel_ip}:26379/0?master=leader'),
-        Sentinel(f'redis://{sentinel_ip}:26379/1?master=leader'),
-        Sentinel(f'redis://{sentinel_ip}:26379/2?master=leader'),
-        Sentinel(f'redis://{sentinel_ip}:26379/3?master=leader'),
+        Sentinel('redis://{0}:26379/0?master=leader'.format(sentinel_ip)),
+        Sentinel('redis://{0}:26379/1?master=leader'.format(sentinel_ip)),
+        Sentinel('redis://{0}:26379/2?master=leader'.format(sentinel_ip)),
+        Sentinel('redis://{0}:26379/3?master=leader'.format(sentinel_ip)),
     ])
 
     if await lock_manager.is_locked("resource"):
