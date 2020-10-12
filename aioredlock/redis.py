@@ -265,7 +265,7 @@ class Redis:
         :raises: LockError if the lock has not been set to at least (N/2 + 1)
             instances
         """
-        start_time = time.time()
+        start_time = time.monotonic()
 
         successes = await asyncio.gather(*[
             i.set_lock(resource, lock_identifier, lock_timeout) for
@@ -273,7 +273,7 @@ class Redis:
         ], return_exceptions=True)
         successful_sets = sum(s is None for s in successes)
 
-        elapsed_time = time.time() - start_time
+        elapsed_time = time.monotonic() - start_time
         locked = True if successful_sets >= int(len(self.instances) / 2) + 1 else False
 
         self.log.debug('Lock "%s" is set on %d/%d instances in %s seconds',
@@ -294,7 +294,7 @@ class Redis:
         :raises: LockError if the lock has not matching identifier in more then
             (N/2 - 1) instances
         """
-        start_time = time.time()
+        start_time = time.monotonic()
 
         successes = await asyncio.gather(*[
             i.unset_lock(resource, lock_identifier) for
@@ -302,7 +302,7 @@ class Redis:
         ], return_exceptions=True)
         successful_remvoes = sum(s is None for s in successes)
 
-        elapsed_time = time.time() - start_time
+        elapsed_time = time.monotonic() - start_time
         unlocked = True if successful_remvoes >= int(len(self.instances) / 2) + 1 else False
 
         self.log.debug('Lock "%s" is unset on %d/%d instances in %s seconds',
