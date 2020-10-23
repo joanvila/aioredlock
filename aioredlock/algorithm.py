@@ -119,7 +119,7 @@ class Aioredlock:
 
     async def lock(self, resource, lock_timeout=None):
         """
-        Tries to acquire de lock.
+        Tries to acquire the lock.
         If the lock is correctly acquired, the valid property of
         the returned lock is True.
         In case of fault the LockError exception will be raised
@@ -171,34 +171,45 @@ class Aioredlock:
                 await self.unlock(lock)
             raise
 
-    async def unlock(self, lock):
+    async def unlock(self, resource_or_lock, lock_identifier=None):
         """
         Release the lock and sets it's validity to False if
         lock successfully released.
         In case of fault the LockError exception will be raised
 
-        :param lock: :class:`aioredlock.Lock`
+        :param resource_or_lock: resource name or aioredlock.Lock instance
+        :param lock_identifier: if resource_or_lock is not a aioredlock.Lock this has to be the identifier of the lock
         :raises: LockError in case of fault
         """
-        self.log.debug('Releasing lock "%s"', lock.resource)
 
-        lock.valid = False
+        if isinstance(resource_or_lock, Lock):
+            resource = resource_or_lock.resource
+            lock_identifier = resource_or_lock.id
+            resource_or_lock.valid = False
+        elif isinstance(resource_or_lock, str):
+            resource = resource_or_lock
+            lock_identifier = lock_identifier
+        else:
+            raise TypeError(
+                'Argument should be ether aioredlock.Lock instance or string, '
+                '%s is given.', type(resource_or_lock)
+            )
+        self.log.debug('Releasing lock "%s"', resource)
+        if resource in self._watchdogs:
+            self._watchdogs[resource].cancel()
 
-        if lock.resource in self._watchdogs:
-            self._watchdogs[lock.resource].cancel()
-
-            done, _ = await asyncio.wait([self._watchdogs[lock.resource]])
+            done, _ = await asyncio.wait([self._watchdogs[resource]])
             for fut in done:
                 try:
                     await fut
                 except asyncio.CancelledError:
                     pass
                 except Exception:
-                    self.log.exception('Can not unlock "%s"', lock.resource)
+                    self.log.exception('Can not unlock "%s"', resource)
 
-            self._watchdogs.pop(lock.resource)
+            self._watchdogs.pop(resource)
 
-        await self.redis.unset_lock(lock.resource, lock.id)
+        await self.redis.unset_lock(resource, lock_identifier)
         # raises LockError if can not unlock
 
     async def is_locked(self, resource_or_lock):
