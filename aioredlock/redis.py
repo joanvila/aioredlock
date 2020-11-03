@@ -8,7 +8,7 @@ import aioredis
 
 from aioredlock.errors import LockError
 from aioredlock.sentinel import Sentinel
-
+from aioredlock.utility import clean_password
 
 class Instance:
 
@@ -67,7 +67,8 @@ class Instance:
         return logging.getLogger(__name__)
 
     def __repr__(self):
-        return "<%s(connection='%s'>" % (self.__class__.__name__, self.connection)
+        connection_details = clean_password(self.connection)
+        return "<%s(connection='%s'>" % (self.__class__.__name__, connection_details)
 
     @staticmethod
     async def _create_redis_pool(*args, **kwargs):
