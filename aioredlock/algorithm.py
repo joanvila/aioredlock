@@ -9,12 +9,14 @@ import attr
 from aioredlock.errors import LockError
 from aioredlock.lock import Lock
 from aioredlock.redis import Redis
+from aioredlock.utility import clean_password
 
 
 @attr.s
 class Aioredlock:
-    redis_connections = attr.ib(default=[{'host': 'localhost', 'port': 6379}])
-
+    redis_connections = attr.ib(
+        default=[{"host": "localhost", "port": 6379}], repr=clean_password
+    )
     retry_count = attr.ib(default=3, converter=int)
     retry_delay_min = attr.ib(default=0.1, converter=float)
     retry_delay_max = attr.ib(default=0.3, converter=float)
