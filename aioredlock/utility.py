@@ -1,6 +1,6 @@
 import re
 
-REDIS_DSN_PATTERN = r"(redis:\/\/)(:.+@)?(.*)"
+REDIS_DSN_PATTERN = r"(rediss?:\/\/)(:.+@)?(.*)"
 
 
 def clean_password(details, cast=str):
