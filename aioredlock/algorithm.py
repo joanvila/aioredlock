@@ -11,6 +11,7 @@ from aioredlock.lock import Lock
 from aioredlock.redis import Redis
 from aioredlock.utility import clean_password
 
+
 @attr.s
 class Aioredlock:
     redis_connections = attr.ib(

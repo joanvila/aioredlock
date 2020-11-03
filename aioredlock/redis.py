@@ -10,6 +10,7 @@ from aioredlock.errors import LockError
 from aioredlock.sentinel import Sentinel
 from aioredlock.utility import clean_password
 
+
 class Instance:
 
     # KEYS[1] - lock resource key
