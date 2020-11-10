@@ -476,6 +476,7 @@ class TestRedis:
 
         calls = [call(script_sha1, **call_args)] * 3
         pool.evalsha.assert_has_calls(calls)
+        # assert 0
 
     @pytest.mark.asyncio
     async def test_clear_connections(self, mock_redis_two_instances):

@@ -77,7 +77,6 @@ class Aioredlock:
                 try:
                     elapsed_time = await self.redis.set_lock(resource, lock_identifier, lease_time)
                 except LockError as exc:
-                    self.log.debug(f'Aua. {exc}')
                     error = exc
                     continue
 
@@ -279,6 +278,5 @@ class Aioredlock:
         :return: a new `aioredlock.Lock`.
         """
         ttl = await self.redis.get_lock_ttl(resource, lock_identifier)
-        self.log.debug(f'TTL is {ttl}')
         lock = Lock(self, resource, lock_identifier, ttl, valid=True)
         return lock

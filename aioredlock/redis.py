@@ -202,10 +202,9 @@ class Instance:
             self.log.debug('Lock "%s" is cancelled on %s',
                            resource, repr(self))
             raise
-        except Exception as exc:
+        except Exception:
             self.log.exception('Can not set lock "%s" on %s',
                                resource, repr(self))
-            self.log.debug(f"exc: {exc}")
             raise
         else:
             self.log.debug('Lock "%s" is set on %s', resource, repr(self))
@@ -227,7 +226,6 @@ class Instance:
                     keys=[resource],
                     args=[lock_identifier]
                 )
-                self.log.debug(f"got ttl of {ttl}")
         except aioredis.errors.ReplyError as exc:  # script fault
             if exc.args[0].startswith('NOSCRIPT'):
                 return await self.get_lock_ttl(resource, lock_identifier, register_scripts=True)
@@ -247,8 +245,7 @@ class Instance:
                                resource, repr(self))
             raise
         else:
-            self.log.debug(f'Lock {resource} has {ttl}')
-            self.log.debug('Lock "%s" is on %s', resource, repr(self))
+            self.log.debug('Lock "%s" with TTL %s is on %s', resource, ttl, repr(self))
             return ttl
 
     async def unset_lock(self, resource, lock_identifier, register_scripts=False):
@@ -328,7 +325,6 @@ class Redis:
         :raises: LockError if the lock has not been set to at least (N/2 + 1)
             instances
         """
-        self.log.debug(f"set_lock {resource} with {lock_identifier}")
         start_time = time.monotonic()
 
         successes = await asyncio.gather(*[
@@ -363,9 +359,7 @@ class Redis:
             i.get_lock_ttl(resource, lock_identifier) for
             i in self.instances
         ], return_exceptions=True)
-        self.log.debug(f"successes is {successes}")
-        successful_list = [s for s in successes if not isinstance(s, LockError)]
-        self.log.debug(f"successful_list is {successful_list}")
+        successful_list = [s for s in successes if not isinstance(s, Exception)]
         # should check if all the value are approx. the same with math.isclose...
         locked = True if len(successful_list) >= int(len(self.instances) / 2) + 1 else False
         success = all_equal(successful_list) and locked
