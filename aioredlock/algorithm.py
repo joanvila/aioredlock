@@ -10,6 +10,9 @@ from aioredlock.errors import LockError
 from aioredlock.lock import Lock
 from aioredlock.redis import Redis
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 
 @attr.s
 class Aioredlock:
@@ -74,6 +77,7 @@ class Aioredlock:
                 try:
                     elapsed_time = await self.redis.set_lock(resource, lock_identifier, lease_time)
                 except LockError as exc:
+                    self.log.debug(f'Aua. {exc}')
                     error = exc
                     continue
 
@@ -264,3 +268,17 @@ class Aioredlock:
             if lock.valid is True and await lock.is_locked():
                 ret.append(lock)
         return ret
+
+    async def get_lock(self, resource, lock_identifier):
+        """
+        recreate a aioredlock.Lock from the goven params and the ttl from redis.
+        so checks if the lock is valid somehow too...
+
+        :param resource: The string identifier of the resource to lock
+        :param lock_identifier: The identifier of the lock
+        :return: a new `aioredlock.Lock`.
+        """
+        ttl = await self.redis.get_lock_ttl(resource, lock_identifier)
+        self.log.debug(f'TTL is {ttl}')
+        lock = Lock(self, resource, lock_identifier, ttl, valid=True)
+        return lock

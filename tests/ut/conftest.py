@@ -41,6 +41,8 @@ def lock_manager_redis_patched():
         mock_redis.is_locked.return_value.set_result(False)
         mock_redis.clear_connections.return_value = asyncio.Future()
         mock_redis.clear_connections.return_value.set_result(MagicMock())
+        mock_redis.get_lock_ttl.return_value = asyncio.Future()
+        mock_redis.get_lock_ttl.return_value.set_result(Lock(None, "resource_name", 1, -1, True))
 
         lock_manager = Aioredlock(internal_lock_timeout=1.0)
         lock_manager.redis = mock_redis
@@ -63,6 +65,8 @@ def aioredlock_patched():
         mock_aioredlock.extend.return_value.set_result(MagicMock())
         mock_aioredlock.unlock = MagicMock(return_value=asyncio.Future())
         mock_aioredlock.unlock.return_value.set_result(MagicMock())
+        # mock_aioredlock.get_lock_ttl = MagicMock(return_value=asyncio.Future())
+        # mock_aioredlock.get_lock_ttl.return_value.set_result(MagicMock())
 
         yield mock_aioredlock
 
