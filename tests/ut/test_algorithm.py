@@ -233,18 +233,6 @@ class TestAioredlock:
         assert locked_lock.valid is False
 
     @pytest.mark.asyncio
-    async def test_unlock_without_lock(self, lock_manager_redis_patched, locked_lock):
-        lock_manager, redis = lock_manager_redis_patched
-
-        await lock_manager.unlock(locked_lock.resource, lock_identifier=locked_lock.id)
-
-        redis.unset_lock.assert_called_once_with(
-            locked_lock.resource,
-            locked_lock.id
-        )
-        assert locked_lock.valid is True, "fixture should be unchanged."
-
-    @pytest.mark.asyncio
     async def test_unlock_type_error(self, lock_manager_redis_patched):
         lock_manager, redis = lock_manager_redis_patched
 

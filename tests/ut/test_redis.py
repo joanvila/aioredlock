@@ -495,7 +495,7 @@ class TestRedis:
     async def test_get_lock(self, mock_redis_two_instances, ):
         redis, pool = mock_redis_two_instances
 
-        res = await redis.get_lock_ttl('resource', 'lock_id')
+        await redis.get_lock_ttl('resource', 'lock_id')
 
         script_sha1 = getattr(redis.instances[0], 'get_lock_ttl_script_sha1')
 
