@@ -121,7 +121,7 @@ class Aioredlock:
 
     async def lock(self, resource, lock_timeout=None):
         """
-        Tries to acquire de lock.
+        Tries to acquire the lock.
         If the lock is correctly acquired, the valid property of
         the returned lock is True.
         In case of fault the LockError exception will be raised
@@ -178,7 +178,6 @@ class Aioredlock:
         Release the lock and sets it's validity to False if
         lock successfully released.
         In case of fault the LockError exception will be raised
-
         :param lock: :class:`aioredlock.Lock`
         :raises: LockError in case of fault
         """
@@ -255,3 +254,16 @@ class Aioredlock:
             if lock.valid is True and await lock.is_locked():
                 ret.append(lock)
         return ret
+
+    async def get_lock(self, resource, lock_identifier):
+        """
+        recreate a aioredlock.Lock from the goven params and the ttl from redis.
+        so checks if the lock is valid somehow too...
+
+        :param resource: The string identifier of the resource to lock
+        :param lock_identifier: The identifier of the lock
+        :return: a new `aioredlock.Lock`.
+        """
+        ttl = await self.redis.get_lock_ttl(resource, lock_identifier)
+        lock = Lock(self, resource, lock_identifier, ttl, valid=True)
+        return lock

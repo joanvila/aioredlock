@@ -3,6 +3,7 @@ import logging
 import re
 import time
 from distutils.version import StrictVersion
+from itertools import groupby
 
 import aioredis
 
@@ -11,10 +12,16 @@ from aioredlock.sentinel import Sentinel
 from aioredlock.utility import clean_password
 
 
+def all_equal(iterable):
+    """Returns True if all the elements are equal to each other"""
+    g = groupby(iterable)
+    return next(g, True) and not next(g, False)
+
+
 class Instance:
 
     # KEYS[1] - lock resource key
-    # ARGS[1] - lock uniquie identifier
+    # ARGS[1] - lock unique identifier
     # ARGS[2] - expiration time in milliseconds
     SET_LOCK_SCRIPT = """
     local identifier = redis.call('get', KEYS[1])
@@ -25,13 +32,24 @@ class Instance:
     end"""
 
     # KEYS[1] - lock resource key
-    # ARGS[1] - lock uniquie identifier
+    # ARGS[1] - lock unique identifier
     UNSET_LOCK_SCRIPT = """
     local identifier = redis.call('get', KEYS[1])
     if not identifier then
         return redis.status_reply('OK')
     elseif identifier == ARGV[1] then
         return redis.call("del", KEYS[1])
+    else
+        return redis.error_reply('ERROR')
+    end"""
+
+    # KEYS[1] - lock resource key
+    GET_LOCK_TTL_SCRIPT = """
+    local identifier = redis.call('get', KEYS[1])
+    if not identifier then
+        return redis.error_reply('ERROR')
+    elseif identifier == ARGV[1] then
+        return redis.call("TTL", KEYS[1])
     else
         return redis.error_reply('ERROR')
     end"""
@@ -62,6 +80,7 @@ class Instance:
 
         self.set_lock_script_sha1 = None
         self.unset_lock_script_sha1 = None
+        self.get_lock_ttl_script_sha1 = None
 
     @property
     def log(self):
@@ -91,12 +110,14 @@ class Instance:
         for script in [
                 self.SET_LOCK_SCRIPT,
                 self.UNSET_LOCK_SCRIPT,
+                self.GET_LOCK_TTL_SCRIPT,
         ]:
             script = re.sub(r'^\s+', '', script, flags=re.M).strip()
             tasks.append(redis.script_load(script))
         (
             self.set_lock_script_sha1,
-            self.unset_lock_script_sha1
+            self.unset_lock_script_sha1,
+            self.get_lock_ttl_script_sha1,
         ) = (r.decode() for r in await asyncio.gather(*tasks))
 
     async def connect(self):
@@ -189,6 +210,45 @@ class Instance:
             raise
         else:
             self.log.debug('Lock "%s" is set on %s', resource, repr(self))
+
+    async def get_lock_ttl(self, resource, lock_identifier, register_scripts=False):
+        """
+        Fetch this instance and set lock expiration time to lock_timeout
+        :param resource: redis key to get
+        :param lock_identifier: unique id of the lock to get
+        :param register_scripts: register redis, usually already done, so 'False'.
+        :raises: LockError if lock is not available
+        """
+        try:
+            with await self.connect() as redis:
+                if register_scripts is True:
+                    await self._register_scripts(redis)
+                ttl = await redis.evalsha(
+                    self.get_lock_ttl_script_sha1,
+                    keys=[resource],
+                    args=[lock_identifier]
+                )
+        except aioredis.errors.ReplyError as exc:  # script fault
+            if exc.args[0].startswith('NOSCRIPT'):
+                return await self.get_lock_ttl(resource, lock_identifier, register_scripts=True)
+            self.log.debug('Can not get lock "%s" on %s',
+                           resource, repr(self))
+            raise LockError('Can not get lock') from exc
+        except (aioredis.errors.RedisError, OSError) as exc:
+            self.log.error('Can not get lock "%s" on %s: %s',
+                           resource, repr(self), repr(exc))
+            raise LockError('Can not get lock') from exc
+        except asyncio.CancelledError:
+            self.log.debug('Lock "%s" is cancelled on %s',
+                           resource, repr(self))
+            raise
+        except Exception:
+            self.log.exception('Can not get lock "%s" on %s',
+                               resource, repr(self))
+            raise
+        else:
+            self.log.debug('Lock "%s" with TTL %s is on %s', resource, ttl, repr(self))
+            return ttl
 
     async def unset_lock(self, resource, lock_identifier, register_scripts=False):
         """
@@ -286,6 +346,35 @@ class Redis:
 
         return elapsed_time
 
+    async def get_lock_ttl(self, resource, lock_identifier=None):
+        """
+        Tries to get the lock from all the redis instances
+
+        :param resource: The resource string name to fetch
+        :param lock_identifier: The id of the lock. A unique string
+        :return float: The TTL of that lock reported by redis
+        :raises: LockError if the lock has not been set to at least (N/2 + 1)
+            instances
+        """
+        start_time = time.monotonic()
+        successes = await asyncio.gather(*[
+            i.get_lock_ttl(resource, lock_identifier) for
+            i in self.instances
+        ], return_exceptions=True)
+        successful_list = [s for s in successes if not isinstance(s, Exception)]
+        # should check if all the value are approx. the same with math.isclose...
+        locked = True if len(successful_list) >= int(len(self.instances) / 2) + 1 else False
+        success = all_equal(successful_list) and locked
+        elapsed_time = time.monotonic() - start_time
+
+        self.log.debug('Lock "%s" is set on %d/%d instances in %s seconds',
+                       resource, len(successful_list), len(self.instances), elapsed_time)
+
+        if not success:
+            raise LockError('Could not fetch the TTL for lock "%s"' % resource)
+
+        return successful_list[0]
+
     async def unset_lock(self, resource, lock_identifier):
         """
         Tries to unset the lock to all the redis instances
@@ -302,13 +391,13 @@ class Redis:
             i.unset_lock(resource, lock_identifier) for
             i in self.instances
         ], return_exceptions=True)
-        successful_remvoes = sum(s is None for s in successes)
+        successful_removes = sum(s is None for s in successes)
 
         elapsed_time = time.monotonic() - start_time
-        unlocked = True if successful_remvoes >= int(len(self.instances) / 2) + 1 else False
+        unlocked = True if successful_removes >= int(len(self.instances) / 2) + 1 else False
 
         self.log.debug('Lock "%s" is unset on %d/%d instances in %s seconds',
-                       resource, successful_remvoes, len(self.instances), elapsed_time)
+                       resource, successful_removes, len(self.instances), elapsed_time)
 
         if not unlocked:
             raise LockError('Can not release the lock')

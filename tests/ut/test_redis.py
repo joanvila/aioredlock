@@ -87,7 +87,7 @@ def fake_create_redis_pool(fake_pool):
 
 class TestInstance:
 
-    script_names = ['SET_LOCK_SCRIPT', 'UNSET_LOCK_SCRIPT']
+    script_names = ['SET_LOCK_SCRIPT', 'UNSET_LOCK_SCRIPT', 'GET_LOCK_TTL_SCRIPT']
 
     def test_initialization(self):
 
@@ -179,7 +179,7 @@ class TestInstance:
 
         assert instance._pool is None
         await instance.connect()
-        assert pool.execute.call_count == 2
+        assert pool.execute.call_count == len(self.script_names)
         assert instance.set_lock_script_sha1 is not None
         assert instance.unset_lock_script_sha1 is not None
 
@@ -198,7 +198,7 @@ class TestInstance:
 
             assert instance._pool is None
             await instance.connect()
-        assert pool.execute.call_count == 2
+        assert pool.execute.call_count == len(self.script_names)
         assert instance.set_lock_script_sha1 is not None
         assert instance.unset_lock_script_sha1 is not None
 
@@ -223,6 +223,19 @@ class TestInstance:
             instance.set_lock_script_sha1,
             keys=['resource'],
             args=['lock_id', 10000]
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_lock_ttl(self, fake_instance):
+        instance = fake_instance
+        await instance.connect()
+        pool = instance._pool
+
+        await instance.get_lock_ttl('resource', 'lock_id')
+        pool.evalsha.assert_called_with(
+            instance.get_lock_ttl_script_sha1,
+            keys=['resource'],
+            args=['lock_id']
         )
 
     @pytest.mark.asyncio
@@ -257,6 +270,7 @@ class TestInstance:
         (
             ('set_lock', ('resource', 'lock_id', 10.0), ['resource'], ['lock_id', 10000]),
             ('unset_lock', ('resource', 'lock_id'), ['resource'], ['lock_id']),
+            ('get_lock_ttl', ('resource', 'lock_id'), ['resource'], ['lock_id']),
         )
     )
     async def test_lock_without_scripts(self, fake_coro, fake_instance, func, args, expected_keys, expected_args):
@@ -268,7 +282,7 @@ class TestInstance:
         await getattr(instance, func)(*args)
 
         assert pool.evalsha.call_count == 2
-        assert pool.script_load.call_count == 4
+        assert pool.script_load.call_count == 6  # for 3 scripts.
 
         pool.evalsha.assert_called_with(
             getattr(instance, '{0}_script_sha1'.format(func)),
@@ -366,6 +380,7 @@ class TestRedis:
     parametrize_methods = pytest.mark.parametrize("method_name, call_args", [
         ('set_lock', {'keys': ['resource'], 'args':['lock_id', 10000]}),
         ('unset_lock', {'keys': ['resource'], 'args':['lock_id']}),
+        ('get_lock_ttl', {'keys': ['resource'], 'args':['lock_id']}),
     ])
 
     @pytest.mark.asyncio
@@ -437,7 +452,7 @@ class TestRedis:
             mock_redis_three_instances,
             redis_result,
             success,
-            method_name, call_args
+            method_name, call_args,
     ):
         redis, pool = mock_redis_three_instances
         redis_result = [fake_coro(result) if isinstance(result, bytes) else result for result in redis_result]
@@ -475,3 +490,15 @@ class TestRedis:
         await redis.clear_connections()
 
         assert pool.close.called is False
+
+    @pytest.mark.asyncio
+    async def test_get_lock(self, mock_redis_two_instances, ):
+        redis, pool = mock_redis_two_instances
+
+        await redis.get_lock_ttl('resource', 'lock_id')
+
+        script_sha1 = getattr(redis.instances[0], 'get_lock_ttl_script_sha1')
+
+        calls = [call(script_sha1, keys=['resource'], args=['lock_id'])]
+        pool.evalsha.assert_has_calls(calls)
+        # assert 0
