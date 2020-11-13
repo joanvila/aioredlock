@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import logging
 import sys
 from unittest.mock import MagicMock, call, patch
 
@@ -227,14 +226,12 @@ class TestInstance:
         )
 
     @pytest.mark.asyncio
-    async def test_get_lock_ttl(self, fake_instance, caplog):
-        caplog.set_level(logging.DEBUG)
+    async def test_get_lock_ttl(self, fake_instance):
         instance = fake_instance
         await instance.connect()
         pool = instance._pool
 
-        ttl = await instance.get_lock_ttl('resource', 'lock_id')
-        print(ttl)
+        await instance.get_lock_ttl('resource', 'lock_id')
         pool.evalsha.assert_called_with(
             instance.get_lock_ttl_script_sha1,
             keys=['resource'],
@@ -456,9 +453,7 @@ class TestRedis:
             redis_result,
             success,
             method_name, call_args,
-            caplog
     ):
-        caplog.set_level(logging.DEBUG)
         redis, pool = mock_redis_three_instances
         redis_result = [fake_coro(result) if isinstance(result, bytes) else result for result in redis_result]
         pool.evalsha = MagicMock(side_effect=redis_result)
@@ -476,7 +471,6 @@ class TestRedis:
 
         calls = [call(script_sha1, **call_args)] * 3
         pool.evalsha.assert_has_calls(calls)
-        # assert 0
 
     @pytest.mark.asyncio
     async def test_clear_connections(self, mock_redis_two_instances):
@@ -502,7 +496,6 @@ class TestRedis:
         redis, pool = mock_redis_two_instances
 
         res = await redis.get_lock_ttl('resource', 'lock_id')
-        print(res)
 
         script_sha1 = getattr(redis.instances[0], 'get_lock_ttl_script_sha1')
 

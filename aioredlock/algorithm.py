@@ -10,9 +10,6 @@ from aioredlock.errors import LockError
 from aioredlock.lock import Lock
 from aioredlock.redis import Redis
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
 
 @attr.s
 class Aioredlock:
