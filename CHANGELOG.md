@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.6.0 - 2020-11-17
+- Added the ability to get a lock object if the key and identifier was provided.
+
+## 0.5.3 - 2020-11-12
+- Removed redis passwords from logs and error messages
+
 ## 0.5.1 - 2020-07-07
 
 ### Added
