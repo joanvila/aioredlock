@@ -132,6 +132,7 @@ class TestInstance:
                 digest = getattr(instance, '%s_sha1' % name.lower())
                 assert digest
                 assert digest in pool.script_cache
+            await fake_pool.close()
 
     @pytest.mark.asyncio
     async def test_connect_pool_not_created_with_minsize_and_maxsize(self):
