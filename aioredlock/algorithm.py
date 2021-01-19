@@ -119,19 +119,20 @@ class Aioredlock:
 
         self._watchdogs[lock.resource] = asyncio.ensure_future(self._auto_extend(lock))
 
-    async def lock(self, resource, lock_timeout=None):
+    async def lock(self, resource, lock_timeout=None, lock_identifier=None):
         """
         Tries to acquire the lock.
         If the lock is correctly acquired, the valid property of
         the returned lock is True.
         In case of fault the LockError exception will be raised
 
-        :param resource: The string identifier of the resource to lock
-        :param lock_timeout: Lock's lifetime
+        :param resource str: The string identifier of the resource to lock
+        :param lock_timeout int: Lock's lifetime
+        :param lock_identifier str: identifier for the instance of the lock
         :return: :class:`aioredlock.Lock`
         :raises: LockError in case of fault
         """
-        lock_identifier = str(uuid.uuid4())
+        lock_identifier = lock_identifier or str(uuid.uuid4())
 
         if lock_timeout is not None and lock_timeout <= 0:
             raise ValueError("Lock timeout must be greater than 0 seconds.")
