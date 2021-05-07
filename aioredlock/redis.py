@@ -118,7 +118,7 @@ class Instance:
             self.set_lock_script_sha1,
             self.unset_lock_script_sha1,
             self.get_lock_ttl_script_sha1,
-        ) = (r.decode() for r in await asyncio.gather(*tasks))
+        ) = (r.decode() if isinstance(r, bytes) else r for r in await asyncio.gather(*tasks))
 
     async def connect(self):
         """

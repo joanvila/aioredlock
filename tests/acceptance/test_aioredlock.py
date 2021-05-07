@@ -10,7 +10,7 @@ from aioredlock import Aioredlock, LockError
 
 @pytest.fixture
 def redis_one_connection():
-    return [{'host': 'localhost', 'port': 6379}]
+    return [{'host': 'localhost', 'port': 6379, 'db': 0}]
 
 
 @pytest.fixture
@@ -95,6 +95,14 @@ class TestAioredlock:
             redis_one_connection):
 
         await self.check_simple_lock(Aioredlock(redis_one_connection))
+
+    @pytest.mark.asyncio
+    async def test_simple_aioredlock_one_instance_pool(
+            self,
+            redis_one_connection):
+        address = 'redis://{host}:{port}/{db}'.format(**redis_one_connection[0])
+        pool = await aioredis.create_redis_pool(address=address, encoding='utf-8')
+        await self.check_simple_lock(Aioredlock([pool]))
 
     @pytest.mark.asyncio
     async def test_aioredlock_two_locks_on_different_resources_one_instance(
