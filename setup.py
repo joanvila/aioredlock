@@ -24,10 +24,7 @@ setup(
     license='MIT',
 
     classifiers=[
-        #   3 - Alpha
-        #   4 - Beta
-        #   5 - Production/Stable
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
 
         'Intended Audience :: Developers',
         'Topic :: Software Development :: Libraries :: Python Modules',
@@ -35,17 +32,17 @@ setup(
         'License :: OSI Approved :: MIT License',
 
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
     ],
 
     keywords='redis redlock distributed locks asyncio',
 
     packages=find_packages(),
 
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     install_requires=['aioredis', 'attrs >= 17.4.0'],
     extras_require={
         'test': ['pytest==6.1.0', 'pytest-asyncio', 'pytest-mock', 'pytest-cov', 'flake8'],
