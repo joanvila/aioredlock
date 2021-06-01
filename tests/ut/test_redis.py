@@ -464,8 +464,10 @@ class TestRedis:
         if success:
             await method('resource', 'lock_id')
         else:
-            with pytest.raises(LockError):
+            with pytest.raises(LockError) as exc_info:
                 await method('resource', 'lock_id')
+            assert hasattr(exc_info.value, '__cause__')
+            assert isinstance(exc_info.value.__cause__, BaseException)
 
         script_sha1 = getattr(redis.instances[0],
                               '%s_script_sha1' % method_name)
