@@ -275,7 +275,7 @@ class Instance:
         except (aioredis.errors.RedisError, OSError) as exc:
             self.log.error('Can not unset lock "%s" on %s: %s',
                            resource, repr(self), repr(exc))
-            raise LockError('Can not set lock') from exc
+            raise LockError('Can not unset lock') from exc
         except asyncio.CancelledError:
             self.log.debug('Lock "%s" unset is cancelled on %s',
                            resource, repr(self))
