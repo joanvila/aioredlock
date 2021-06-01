@@ -336,7 +336,7 @@ class Redis:
         successful_sets = sum(s is None for s in successes)
 
         elapsed_time = time.monotonic() - start_time
-        locked = True if successful_sets >= int(len(self.instances) / 2) + 1 else False
+        locked = successful_sets >= int(len(self.instances) / 2) + 1
 
         self.log.debug('Lock "%s" is set on %d/%d instances in %s seconds',
                        resource, successful_sets, len(self.instances), elapsed_time)
@@ -363,7 +363,7 @@ class Redis:
         ], return_exceptions=True)
         successful_list = [s for s in successes if not isinstance(s, Exception)]
         # should check if all the value are approx. the same with math.isclose...
-        locked = True if len(successful_list) >= int(len(self.instances) / 2) + 1 else False
+        locked = len(successful_list) >= int(len(self.instances) / 2) + 1
         success = all_equal(successful_list) and locked
         elapsed_time = time.monotonic() - start_time
 
@@ -394,7 +394,7 @@ class Redis:
         successful_removes = sum(s is None for s in successes)
 
         elapsed_time = time.monotonic() - start_time
-        unlocked = True if successful_removes >= int(len(self.instances) / 2) + 1 else False
+        unlocked = successful_removes >= int(len(self.instances) / 2) + 1
 
         self.log.debug('Lock "%s" is unset on %d/%d instances in %s seconds',
                        resource, successful_removes, len(self.instances), elapsed_time)
@@ -418,9 +418,7 @@ class Redis:
         ], return_exceptions=True)
         successful_sets = sum(s is True for s in successes)
 
-        locked = True if successful_sets >= int(len(self.instances) / 2) + 1 else False
-
-        return locked
+        return successful_sets >= int(len(self.instances) / 2) + 1
 
     async def clear_connections(self):
 
