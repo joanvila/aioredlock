@@ -7,7 +7,7 @@ from itertools import groupby
 
 import aioredis
 
-from aioredlock.errors import LockError
+from aioredlock.errors import LockError, LockAcquiringError, LockRuntimeError
 from aioredlock.sentinel import Sentinel
 from aioredlock.utility import clean_password
 
@@ -195,11 +195,11 @@ class Instance:
                 return await self.set_lock(resource, lock_identifier, lock_timeout, register_scripts=True)
             self.log.debug('Can not set lock "%s" on %s',
                            resource, repr(self))
-            raise LockError('Can not set lock') from exc
+            raise LockAcquiringError('Can not set lock') from exc
         except (aioredis.errors.RedisError, OSError) as exc:
             self.log.error('Can not set lock "%s" on %s: %s',
                            resource, repr(self), repr(exc))
-            raise LockError('Can not set lock') from exc
+            raise LockRuntimeError('Can not set lock') from exc
         except asyncio.CancelledError:
             self.log.debug('Lock "%s" is cancelled on %s',
                            resource, repr(self))
@@ -233,11 +233,11 @@ class Instance:
                 return await self.get_lock_ttl(resource, lock_identifier, register_scripts=True)
             self.log.debug('Can not get lock "%s" on %s',
                            resource, repr(self))
-            raise LockError('Can not get lock') from exc
+            raise LockAcquiringError('Can not get lock') from exc
         except (aioredis.errors.RedisError, OSError) as exc:
             self.log.error('Can not get lock "%s" on %s: %s',
                            resource, repr(self), repr(exc))
-            raise LockError('Can not get lock') from exc
+            raise LockRuntimeError('Can not get lock') from exc
         except asyncio.CancelledError:
             self.log.debug('Lock "%s" is cancelled on %s',
                            resource, repr(self))
@@ -271,11 +271,11 @@ class Instance:
                 return await self.unset_lock(resource, lock_identifier, register_scripts=True)
             self.log.debug('Can not unset lock "%s" on %s',
                            resource, repr(self))
-            raise LockError('Can not unset lock') from exc
+            raise LockAcquiringError('Can not unset lock') from exc
         except (aioredis.errors.RedisError, OSError) as exc:
             self.log.error('Can not unset lock "%s" on %s: %s',
                            resource, repr(self), repr(exc))
-            raise LockError('Can not unset lock') from exc
+            raise LockRuntimeError('Can not unset lock') from exc
         except asyncio.CancelledError:
             self.log.debug('Lock "%s" unset is cancelled on %s',
                            resource, repr(self))
@@ -342,7 +342,8 @@ class Redis:
                        resource, successful_sets, len(self.instances), elapsed_time)
 
         if not locked:
-            raise LockError('Can not acquire the lock "%s"' % resource)
+            errors = [e for e in successes if isinstance(e, BaseException)]
+            raise LockError('Can not acquire the lock "%s"' % resource) from errors[0]
 
         return elapsed_time
 
@@ -371,7 +372,8 @@ class Redis:
                        resource, len(successful_list), len(self.instances), elapsed_time)
 
         if not success:
-            raise LockError('Could not fetch the TTL for lock "%s"' % resource)
+            errors = [e for e in successes if isinstance(e, BaseException)]
+            raise LockError('Could not fetch the TTL for lock "%s"' % resource) from errors[0]
 
         return successful_list[0]
 
@@ -400,7 +402,8 @@ class Redis:
                        resource, successful_removes, len(self.instances), elapsed_time)
 
         if not unlocked:
-            raise LockError('Can not release the lock')
+            errors = [e for e in successes if isinstance(e, BaseException)]
+            raise LockError('Can not release the lock') from errors[0]
 
         return elapsed_time
 

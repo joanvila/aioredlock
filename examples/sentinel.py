@@ -38,7 +38,7 @@ import logging
 
 import aiodocker
 
-from aioredlock import Aioredlock, LockError, Sentinel
+from aioredlock import Aioredlock, LockError, LockAcquiringError, Sentinel
 
 
 async def get_container(name):
@@ -84,10 +84,12 @@ async def lock_context():
             await container.unpause()
 
         assert lock.valid is False  # lock will be released by context manager
-    except LockError:
-        print('"resource" key might be not empty. Please call '
-              '"del resource" in redis-cli')
-        raise
+    except LockError as e:
+        if e.__cause__ and isinstance(e.__cause__, LockAcquiringError):
+            print('Something happened during normal operation')
+        else:
+            print('Something is really wrong and we prefer to raise the exception')
+            raise
 
     assert lock.valid is False
     assert await lock_manager.is_locked("resource") is False
