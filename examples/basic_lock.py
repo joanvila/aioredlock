@@ -17,12 +17,11 @@ async def basic_lock():
 
     try:
         lock = await lock_manager.lock("resource")
-    except LockError as e:
-        if e.__cause__ and isinstance(e.__cause__, LockAcquiringError):
-            print('Something happened during normal operation')
-        else:
-            print('Something is really wrong and we prefer to raise the exception')
-            raise
+    except LockAcquiringError:
+        print('Something happened during normal operation. We just log it.')
+    except LockError:
+        print('Something is really wrong and we prefer to raise the exception')
+        raise
     assert lock.valid is True
     assert await lock_manager.is_locked("resource") is True
 

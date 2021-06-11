@@ -18,6 +18,16 @@ def all_equal(iterable):
     return next(g, True) and not next(g, False)
 
 
+def raise_error(results, default_message):
+    errors = [e for e in results if isinstance(e, BaseException)]
+    if any(type(e) is LockRuntimeError for e in errors):
+        raise [e for e in errors if type(e) is LockRuntimeError][0]
+    elif any(type(e) is LockAcquiringError for e in errors):
+        raise [e for e in errors if type(e) is LockAcquiringError][0]
+    else:
+        raise LockError(default_message) from errors[0]
+
+
 class Instance:
 
     # KEYS[1] - lock resource key
@@ -324,8 +334,8 @@ class Redis:
         :param lock_timeout: lock's lifetime
         :return float: The elapsed time that took to lock the instances
             in seconds
-        :raises: LockError if the lock has not been set to at least (N/2 + 1)
-            instances
+        :raises: LockRuntimeError or LockAcquiringError or LockError if the lock has not
+            been set to at least (N/2 + 1) instances
         """
         start_time = time.monotonic()
 
@@ -342,8 +352,7 @@ class Redis:
                        resource, successful_sets, len(self.instances), elapsed_time)
 
         if not locked:
-            errors = [e for e in successes if isinstance(e, BaseException)]
-            raise LockError('Can not acquire the lock "%s"' % resource) from errors[0]
+            raise_error(successes, 'Can not acquire the lock "%s"' % resource)
 
         return elapsed_time
 
@@ -354,8 +363,8 @@ class Redis:
         :param resource: The resource string name to fetch
         :param lock_identifier: The id of the lock. A unique string
         :return float: The TTL of that lock reported by redis
-        :raises: LockError if the lock has not been set to at least (N/2 + 1)
-            instances
+        :raises: LockRuntimeError or LockAcquiringError or LockError if the lock has not
+            been set to at least (N/2 + 1) instances
         """
         start_time = time.monotonic()
         successes = await asyncio.gather(*[
@@ -372,8 +381,7 @@ class Redis:
                        resource, len(successful_list), len(self.instances), elapsed_time)
 
         if not success:
-            errors = [e for e in successes if isinstance(e, BaseException)]
-            raise LockError('Could not fetch the TTL for lock "%s"' % resource) from errors[0]
+            raise_error(successes, 'Could not fetch the TTL for lock "%s"' % resource)
 
         return successful_list[0]
 
@@ -384,8 +392,8 @@ class Redis:
         :param resource: The resource string name to lock
         :param lock_identifier: The id of the lock. A unique string
         :return float: The elapsed time that took to lock the instances in iseconds
-        :raises: LockError if the lock has not matching identifier in more then
-            (N/2 - 1) instances
+        :raises: LockRuntimeError or LockAcquiringError or LockError if the lock has no
+            matching identifier in more then (N/2 - 1) instances
         """
         start_time = time.monotonic()
 
@@ -402,8 +410,7 @@ class Redis:
                        resource, successful_removes, len(self.instances), elapsed_time)
 
         if not unlocked:
-            errors = [e for e in successes if isinstance(e, BaseException)]
-            raise LockError('Can not release the lock') from errors[0]
+            raise_error(successes, 'Can not release the lock')
 
         return elapsed_time
 
