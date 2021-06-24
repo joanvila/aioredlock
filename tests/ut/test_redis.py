@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, call, patch
 import aioredis
 import pytest
 
-from aioredlock.errors import LockError
+from aioredlock.errors import LockError, LockAcquiringError, LockRuntimeError
 from aioredlock.redis import Instance, Redis
 from aioredlock.sentinel import Sentinel
 
@@ -468,6 +468,42 @@ class TestRedis:
                 await method('resource', 'lock_id')
             assert hasattr(exc_info.value, '__cause__')
             assert isinstance(exc_info.value.__cause__, BaseException)
+
+        script_sha1 = getattr(redis.instances[0],
+                              '%s_script_sha1' % method_name)
+
+        calls = [call(script_sha1, **call_args)] * 3
+        pool.evalsha.assert_has_calls(calls)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("redis_result, error", [
+        ([EVAL_OK, EVAL_ERROR, CONNECT_ERROR], LockRuntimeError),
+        ([EVAL_ERROR, EVAL_ERROR, CONNECT_ERROR], LockRuntimeError),
+        ([EVAL_ERROR, CONNECT_ERROR, RANDOM_ERROR], LockRuntimeError),
+        ([EVAL_ERROR, EVAL_ERROR, EVAL_OK], LockAcquiringError),
+        ([CANCELLED, CANCELLED, CANCELLED], LockError),
+        ([RANDOM_ERROR, CANCELLED, CANCELLED], LockError),
+    ])
+    @parametrize_methods
+    async def test_three_instances_combination_errors(
+            self,
+            fake_coro,
+            mock_redis_three_instances,
+            redis_result,
+            error,
+            method_name, call_args,
+    ):
+        redis, pool = mock_redis_three_instances
+        redis_result = [fake_coro(result) if isinstance(result, bytes) else result for result in redis_result]
+        pool.evalsha = MagicMock(side_effect=redis_result)
+
+        method = getattr(redis, method_name)
+
+        with pytest.raises(error) as exc_info:
+            await method('resource', 'lock_id')
+
+        assert hasattr(exc_info.value, '__cause__')
+        assert isinstance(exc_info.value.__cause__, BaseException)
 
         script_sha1 = getattr(redis.instances[0],
                               '%s_script_sha1' % method_name)
