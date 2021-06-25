@@ -395,6 +395,10 @@ class Redis:
         :raises: LockRuntimeError or LockAcquiringError or LockError if the lock has no
             matching identifier in more then (N/2 - 1) instances
         """
+
+        if not self.instances:
+            return .0
+
         start_time = time.monotonic()
 
         successes = await asyncio.gather(*[
