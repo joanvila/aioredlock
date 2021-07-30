@@ -43,7 +43,7 @@ setup(
     packages=find_packages(),
 
     python_requires='>=3.6',
-    install_requires=['aioredis', 'attrs >= 17.4.0'],
+    install_requires=['aioredis<2', 'attrs >= 17.4.0'],
     extras_require={
         'test': ['pytest==6.1.0', 'pytest-asyncio', 'pytest-mock', 'pytest-cov', 'flake8'],
         'cicd': ['codecov'],
