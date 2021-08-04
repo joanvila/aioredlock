@@ -227,9 +227,11 @@ class TestInstance:
         await instance.set_lock('resource', 'lock_id', 10.0)
 
         pool.evalsha.assert_called_once_with(
-            instance.set_lock_script_sha1,
-            keys=['resource'],
-            args=['lock_id', 10000]
+            **_setup_evalsha_call_args(
+                digest=instance.set_lock_script_sha1,
+                keys=['resource'],
+                args=['lock_id', 10000],
+            ).kwargs
         )
 
     @pytest.mark.asyncio
@@ -240,9 +242,11 @@ class TestInstance:
 
         await instance.get_lock_ttl('resource', 'lock_id')
         pool.evalsha.assert_called_with(
-            instance.get_lock_ttl_script_sha1,
-            keys=['resource'],
-            args=['lock_id']
+            **_setup_evalsha_call_args(
+                instance.get_lock_ttl_script_sha1,
+                keys=['resource'],
+                args=['lock_id'],
+            ).kwargs
         )
 
     @pytest.mark.asyncio
@@ -262,9 +266,11 @@ class TestInstance:
         await instance.set_lock('resource', 'lock_id', 10.0)
 
         pool.evalsha.assert_called_once_with(
-            instance.set_lock_script_sha1,
-            keys=['resource'],
-            args=['lock_id', 10000]
+            **_setup_evalsha_call_args(
+                instance.set_lock_script_sha1,
+                keys=['resource'],
+                args=['lock_id', 10000],
+            ).kwargs
         )
 
         instance._pool = None
@@ -292,9 +298,11 @@ class TestInstance:
         assert pool.script_load.call_count == 6  # for 3 scripts.
 
         pool.evalsha.assert_called_with(
-            getattr(instance, '{0}_script_sha1'.format(func)),
-            keys=expected_keys,
-            args=expected_args,
+            **_setup_evalsha_call_args(
+                getattr(instance, '{0}_script_sha1'.format(func)),
+                keys=expected_keys,
+                args=expected_args,
+            ).kwargs
         )
 
     @pytest.mark.asyncio
@@ -306,9 +314,11 @@ class TestInstance:
         await instance.unset_lock('resource', 'lock_id')
 
         pool.evalsha.assert_called_once_with(
-            instance.unset_lock_script_sha1,
-            keys=['resource'],
-            args=['lock_id']
+            **_setup_evalsha_call_args(
+                instance.unset_lock_script_sha1,
+                keys=['resource'],
+                args=['lock_id'],
+            ).kwargs
         )
 
     @pytest.mark.asyncio
@@ -369,6 +379,22 @@ def mock_redis_three_instances(redis_three_connections):
     yield redis, pool
 
 
+def _setup_evalsha_call_args(digest, keys, args):
+    if StrictVersion(aioredis.__version__) >= StrictVersion('2.0.0'):
+        return call(
+            digest,
+            len(keys),
+            *keys,
+            *args,
+        )
+    else:
+        return call(
+            digest=digest,
+            keys=keys,
+            args=args,
+        )
+
+
 class TestRedis:
 
     def test_initialization(self, redis_two_connections):
@@ -390,21 +416,6 @@ class TestRedis:
         ('get_lock_ttl', {'keys': ['resource'], 'args':['lock_id']}),
     ])
 
-    def _setup_evalsha_call_args(self, digest, keys, args):
-        if StrictVersion(aioredis.__version__) >= StrictVersion('2.0.0'):
-            return call(
-                digest,
-                len(keys),
-                *keys,
-                *args,
-            )
-        else:
-            return call(
-                digest=digest,
-                keys=keys,
-                args=args,
-            )
-
     @pytest.mark.asyncio
     @parametrize_methods
     async def test_lock(
@@ -419,7 +430,7 @@ class TestRedis:
 
         script_sha1 = getattr(redis.instances[0], '%s_script_sha1' % method_name)
 
-        calls = [self._setup_evalsha_call_args(script_sha1, **call_args)] * 2
+        calls = [_setup_evalsha_call_args(script_sha1, **call_args)] * 2
         pool.evalsha.assert_has_calls(calls)
 
     @pytest.mark.asyncio
@@ -455,7 +466,7 @@ class TestRedis:
 
         script_sha1 = getattr(redis.instances[0], '%s_script_sha1' % method_name)
 
-        calls = [self._setup_evalsha_call_args(script_sha1, **call_args)] * 2
+        calls = [_setup_evalsha_call_args(script_sha1, **call_args)] * 2
         pool.evalsha.assert_has_calls(calls)
 
     @pytest.mark.asyncio
@@ -493,7 +504,7 @@ class TestRedis:
         script_sha1 = getattr(redis.instances[0],
                               '%s_script_sha1' % method_name)
 
-        calls = [self._setup_evalsha_call_args(script_sha1, **call_args)] * 3
+        calls = [_setup_evalsha_call_args(script_sha1, **call_args)] * 3
         pool.evalsha.assert_has_calls(calls)
 
     @pytest.mark.asyncio
@@ -529,7 +540,7 @@ class TestRedis:
         script_sha1 = getattr(redis.instances[0],
                               '%s_script_sha1' % method_name)
 
-        calls = [self._setup_evalsha_call_args(script_sha1, **call_args)] * 3
+        calls = [_setup_evalsha_call_args(script_sha1, **call_args)] * 3
         pool.evalsha.assert_has_calls(calls)
 
     @pytest.mark.asyncio
@@ -559,6 +570,6 @@ class TestRedis:
 
         script_sha1 = getattr(redis.instances[0], 'get_lock_ttl_script_sha1')
 
-        calls = [self._setup_evalsha_call_args(script_sha1, keys=['resource'], args=['lock_id'])]
+        calls = [_setup_evalsha_call_args(script_sha1, keys=['resource'], args=['lock_id'])]
         pool.evalsha.assert_has_calls(calls)
         # assert 0
