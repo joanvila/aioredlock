@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, call, patch
 import aioredis
 import pytest
 
-import aioredis
 try:
     from aioredis.errors import ReplyError as ResponseError
 except ImportError:

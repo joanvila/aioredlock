@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import ssl
-import sys
 from unittest import mock
 
 import aioredlock.sentinel
