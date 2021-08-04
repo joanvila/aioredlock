@@ -7,6 +7,11 @@ from itertools import groupby
 
 import aioredis
 
+try:
+    from aioredis.errors import ReplyError as NoScriptError, RedisError
+except ImportError:
+    from aioredis.exceptions import NoScriptError, RedisError
+
 from aioredlock.errors import LockError, LockAcquiringError, LockRuntimeError
 from aioredlock.sentinel import Sentinel
 from aioredlock.utility import clean_password
@@ -200,13 +205,13 @@ class Instance:
                     keys=[resource],
                     args=[lock_identifier, lock_timeout_ms]
                 )
-        except aioredis.errors.ReplyError as exc:  # script fault
-            if exc.args[0].startswith('NOSCRIPT'):
+        except NoScriptError as exc:  # script fault
+            if exc.__class__.__name__ == 'NoScriptError' or exc.args[0].startswith('NOSCRIPT'):
                 return await self.set_lock(resource, lock_identifier, lock_timeout, register_scripts=True)
             self.log.debug('Can not set lock "%s" on %s',
                            resource, repr(self))
             raise LockAcquiringError('Can not set lock') from exc
-        except (aioredis.errors.RedisError, OSError) as exc:
+        except (RedisError, OSError) as exc:
             self.log.error('Can not set lock "%s" on %s: %s',
                            resource, repr(self), repr(exc))
             raise LockRuntimeError('Can not set lock') from exc
@@ -238,13 +243,13 @@ class Instance:
                     keys=[resource],
                     args=[lock_identifier]
                 )
-        except aioredis.errors.ReplyError as exc:  # script fault
-            if exc.args[0].startswith('NOSCRIPT'):
+        except NoScriptError as exc:  # script fault
+            if exc.__class__.__name__ == 'NoScriptError' or exc.args[0].startswith('NOSCRIPT'):
                 return await self.get_lock_ttl(resource, lock_identifier, register_scripts=True)
             self.log.debug('Can not get lock "%s" on %s',
                            resource, repr(self))
             raise LockAcquiringError('Can not get lock') from exc
-        except (aioredis.errors.RedisError, OSError) as exc:
+        except (RedisError, OSError) as exc:
             self.log.error('Can not get lock "%s" on %s: %s',
                            resource, repr(self), repr(exc))
             raise LockRuntimeError('Can not get lock') from exc
@@ -276,13 +281,13 @@ class Instance:
                     keys=[resource],
                     args=[lock_identifier]
                 )
-        except aioredis.errors.ReplyError as exc:  # script fault
-            if exc.args[0].startswith('NOSCRIPT'):
+        except NoScriptError as exc:  # script fault
+            if exc.__class__.__name__ == 'NoScriptError' or exc.args[0].startswith('NOSCRIPT'):
                 return await self.unset_lock(resource, lock_identifier, register_scripts=True)
             self.log.debug('Can not unset lock "%s" on %s',
                            resource, repr(self))
             raise LockAcquiringError('Can not unset lock') from exc
-        except (aioredis.errors.RedisError, OSError) as exc:
+        except (RedisError, OSError) as exc:
             self.log.error('Can not unset lock "%s" on %s: %s',
                            resource, repr(self), repr(exc))
             raise LockRuntimeError('Can not unset lock') from exc

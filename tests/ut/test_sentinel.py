@@ -22,7 +22,7 @@ def mock_aioredis_sentinel():
     else:
         mock_obj = mock.AsyncMock()
         mock_obj.master_for.return_value = True
-    with mock.patch.object(aioredlock.sentinel.aioredis.sentinel, 'create_sentinel') as mock_sentinel:
+    with mock.patch.object(aioredlock.sentinel, 'create_sentinel') as mock_sentinel:
         if sys.version_info < (3, 8, 0):
             mock_sentinel.return_value = asyncio.Future()
             mock_sentinel.return_value.set_result(mock_obj)

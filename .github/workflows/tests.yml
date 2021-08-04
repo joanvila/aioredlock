@@ -14,8 +14,8 @@ jobs:
         - 3.8
         - 3.9
         aioredis-version:
-        - '<2.0.0'
-        - '>=2.0.0'
+        - 'aioredis<2.0.0'
+        - 'aioredis>=2.0.0'
 
     services:
       redis:
@@ -34,7 +34,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install .[test,cicd,package]
-        pip install aioredis${{ matrix.aioredis-version }}
+        pip install ${{ matrix.aioredis-version }}
     - name: Check syntax
       run: |
         make syntax

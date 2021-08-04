@@ -6,6 +6,11 @@ from unittest.mock import MagicMock, call, patch
 import aioredis
 import pytest
 
+try:
+    from aioredis.errors import ReplyError as ResponseError
+except ImportError:
+    from aioredis.exceptions import ResponseError
+
 from aioredlock.errors import LockError, LockAcquiringError, LockRuntimeError
 from aioredlock.redis import Instance, Redis
 from aioredlock.sentinel import Sentinel
@@ -19,7 +24,7 @@ def callculate_sha1(text):
 
 
 EVAL_OK = b'OK'
-EVAL_ERROR = aioredis.errors.ReplyError('ERROR')
+EVAL_ERROR = ResponseError('ERROR')
 CANCELLED = asyncio.CancelledError('CANCELLED')
 CONNECT_ERROR = OSError('ERROR')
 RANDOM_ERROR = Exception('FAULT')
