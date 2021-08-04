@@ -2,7 +2,10 @@ import re
 import ssl
 import urllib.parse
 
-import aioredis.sentinel
+try:
+    from aioredis.sentinel import create_sentinel
+except ImportError:
+    from aioredis.sentinel import Sentinel as create_sentinel
 
 
 class SentinelConfigError(Exception):
@@ -102,7 +105,7 @@ class Sentinel:
         '''
         Retrieve sentinel object from aioredis.
         '''
-        return await aioredis.sentinel.create_sentinel(
+        return await create_sentinel(
             sentinels=self.connection,
             **self.redis_kwargs,
         )
