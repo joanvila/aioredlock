@@ -1,11 +1,13 @@
 import asyncio
 import hashlib
 import sys
+from distutils.version import StrictVersion
 from unittest.mock import MagicMock, call, patch
 
 import aioredis
 import pytest
 
+import aioredis
 try:
     from aioredis.errors import ReplyError as ResponseError
 except ImportError:
@@ -389,6 +391,21 @@ class TestRedis:
         ('get_lock_ttl', {'keys': ['resource'], 'args':['lock_id']}),
     ])
 
+    def _setup_evalsha_call_args(self, digest, keys, args):
+        if StrictVersion(aioredis.__version__) >= StrictVersion('2.0.0'):
+            return call(
+                digest,
+                len(keys),
+                *keys,
+                *args,
+            )
+        else:
+            return call(
+                digest=digest,
+                keys=keys,
+                args=args,
+            )
+
     @pytest.mark.asyncio
     @parametrize_methods
     async def test_lock(
@@ -403,7 +420,7 @@ class TestRedis:
 
         script_sha1 = getattr(redis.instances[0], '%s_script_sha1' % method_name)
 
-        calls = [call(script_sha1, **call_args)] * 2
+        calls = [self._setup_evalsha_call_args(script_sha1, **call_args)] * 2
         pool.evalsha.assert_has_calls(calls)
 
     @pytest.mark.asyncio
@@ -439,7 +456,7 @@ class TestRedis:
 
         script_sha1 = getattr(redis.instances[0], '%s_script_sha1' % method_name)
 
-        calls = [call(script_sha1, **call_args)] * 2
+        calls = [self._setup_evalsha_call_args(script_sha1, **call_args)] * 2
         pool.evalsha.assert_has_calls(calls)
 
     @pytest.mark.asyncio
@@ -477,7 +494,7 @@ class TestRedis:
         script_sha1 = getattr(redis.instances[0],
                               '%s_script_sha1' % method_name)
 
-        calls = [call(script_sha1, **call_args)] * 3
+        calls = [self._setup_evalsha_call_args(script_sha1, **call_args)] * 3
         pool.evalsha.assert_has_calls(calls)
 
     @pytest.mark.asyncio
@@ -513,7 +530,7 @@ class TestRedis:
         script_sha1 = getattr(redis.instances[0],
                               '%s_script_sha1' % method_name)
 
-        calls = [call(script_sha1, **call_args)] * 3
+        calls = [self._setup_evalsha_call_args(script_sha1, **call_args)] * 3
         pool.evalsha.assert_has_calls(calls)
 
     @pytest.mark.asyncio
@@ -543,6 +560,6 @@ class TestRedis:
 
         script_sha1 = getattr(redis.instances[0], 'get_lock_ttl_script_sha1')
 
-        calls = [call(script_sha1, keys=['resource'], args=['lock_id'])]
+        calls = [self._setup_evalsha_call_args(script_sha1, keys=['resource'], args=['lock_id'])]
         pool.evalsha.assert_has_calls(calls)
         # assert 0

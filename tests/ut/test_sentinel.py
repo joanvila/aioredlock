@@ -15,19 +15,12 @@ pytestmark = [pytest.mark.asyncio]
 
 @contextlib.contextmanager
 def mock_aioredis_sentinel():
-    if sys.version_info < (3, 8, 0):
-        mock_obj = mock.MagicMock()
-        mock_obj.master_for.return_value = asyncio.Future()
-        mock_obj.master_for.return_value.set_result(True)
-    else:
-        mock_obj = mock.AsyncMock()
-        mock_obj.master_for.return_value = True
+    mock_obj = mock.MagicMock()
+    mock_obj.master_for.return_value = asyncio.Future()
+    mock_obj.master_for.return_value.set_result(True)
     with mock.patch.object(aioredlock.sentinel, 'create_sentinel') as mock_sentinel:
-        if sys.version_info < (3, 8, 0):
-            mock_sentinel.return_value = asyncio.Future()
-            mock_sentinel.return_value.set_result(mock_obj)
-        else:
-            mock_sentinel.return_value = mock_obj
+        mock_sentinel.return_value = asyncio.Future()
+        mock_sentinel.return_value.set_result(mock_obj)
         yield mock_sentinel
 
 
@@ -143,10 +136,7 @@ async def test_sentinel(ssl_context, connection, kwargs, expected_kwargs, expect
     if with_ssl or kwargs.get('ssl_context') is True:
         expected_kwargs['ssl'] = ssl_context
     mock_sentinel.assert_called_with(**expected_kwargs)
-    if sys.version_info < (3, 8, 0):
-        result = mock_sentinel.return_value.result()
-    else:
-        result = mock_sentinel.return_value
+    result = mock_sentinel.return_value.result()
     assert result.master_for.called
     result.master_for.assert_called_with(expected_master)
     if with_ssl:
