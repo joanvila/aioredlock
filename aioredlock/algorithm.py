@@ -205,7 +205,6 @@ class Aioredlock:
         
         self._locks.pop(lock.resource, None)
 
-
     async def is_locked(self, resource_or_lock):
         """
         Checks if the resource or the lock is locked by any redlock instance.
