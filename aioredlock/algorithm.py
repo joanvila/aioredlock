@@ -199,10 +199,12 @@ class Aioredlock:
                     self.log.exception('Can not unlock "%s"', lock.resource)
 
             self._watchdogs.pop(lock.resource)
-            self._locks.pop(lock.resource, None)
-
+            
         await self.redis.unset_lock(lock.resource, lock.id)
         # raises LockError if can not unlock
+        
+        self._locks.pop(lock.resource, None)
+
 
     async def is_locked(self, resource_or_lock):
         """
