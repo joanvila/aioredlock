@@ -230,7 +230,7 @@ class Aioredlock:
         """
         self.log.debug('Destroying %s', repr(self))
 
-        for resource, lock in self._locks.items():
+        for resource, lock in self._locks.copy().items():
             if lock.valid:
                 try:
                     await self.unlock(lock)
