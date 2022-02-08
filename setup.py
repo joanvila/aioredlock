@@ -32,7 +32,6 @@ setup(
         'License :: OSI Approved :: MIT License',
 
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
@@ -43,7 +42,7 @@ setup(
     packages=find_packages(),
 
     python_requires='>=3.6',
-    install_requires=['aioredis', 'attrs >= 17.4.0'],
+    install_requires=['aioredis<2.0.0', 'attrs >= 17.4.0'],
     extras_require={
         'test': ['pytest==6.1.0', 'pytest-asyncio', 'pytest-mock', 'pytest-cov', 'flake8'],
         'cicd': ['codecov'],
