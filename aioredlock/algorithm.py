@@ -202,7 +202,6 @@ class Aioredlock:
 
         await self.redis.unset_lock(lock.resource, lock.id)
         # raises LockError if can not unlock
-        
         self._locks.pop(lock.resource, None)
 
     async def is_locked(self, resource_or_lock):
