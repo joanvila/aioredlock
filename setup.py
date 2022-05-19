@@ -13,7 +13,7 @@ setup(
 
     version='0.7.3',
 
-    description='Asyncio implemetation of Redis distributed locks',
+    description='Asyncio implementation of Redis distributed locks',
     long_description=long_description,
 
     url='https://github.com/joanvila/aioredlock',
