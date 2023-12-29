@@ -379,9 +379,9 @@ class TestRedis:
             assert len(redis.instances) == 2
 
     parametrize_methods = pytest.mark.parametrize("method_name, call_args", [
-        ('set_lock', {'keys': ['resource'], 'args':['lock_id', 10000]}),
-        ('unset_lock', {'keys': ['resource'], 'args':['lock_id']}),
-        ('get_lock_ttl', {'keys': ['resource'], 'args':['lock_id']}),
+        ('set_lock', {'keys': ['resource'], 'args': ['lock_id', 10000]}),
+        ('unset_lock', {'keys': ['resource'], 'args': ['lock_id']}),
+        ('get_lock_ttl', {'keys': ['resource'], 'args': ['lock_id']}),
     ])
 
     @pytest.mark.asyncio
